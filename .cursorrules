@@ -1,0 +1,150 @@
+# StreamCal — Cursor Rules
+
+## Project Overview
+
+StreamCal is a native iOS app built with SwiftUI that helps users track TV shows and streaming releases.
+
+Users can:
+- add shows to a personal library
+- track upcoming episodes
+- view releases in a calendar
+- manage their watchlist
+
+The focus is a **fast, simple, modern SwiftUI experience**.
+
+---
+
+## Tech Stack
+
+Language: Swift  
+UI: SwiftUI  
+Persistence: SwiftData  
+Minimum iOS: iOS 17+
+
+Use modern Swift features:
+- async/await
+- structured concurrency
+- SwiftData models
+
+Avoid unnecessary dependencies.
+
+---
+
+## Architecture Philosophy
+
+Prefer **simple SwiftUI patterns first**.
+
+Current architecture:
+
+Views  
+SwiftUI screens and UI components.
+
+Models  
+SwiftData models representing shows and releases.
+
+Persistence  
+SwiftData queries using `@Query`.
+
+Utilities  
+Reusable helpers and extensions.
+
+ViewModels  
+Only introduce when business logic becomes complex.
+
+Do NOT introduce unnecessary abstraction layers early.
+
+---
+
+## State Management
+
+Prefer:
+
+- `@State`
+- `@Binding`
+- `@Environment`
+- `@Query`
+
+Use ViewModels **only when state becomes complex or reused across multiple views**.  
+Use `@Observable` (Observation framework) — not `ObservableObject` / `@StateObject`.
+
+Avoid premature MVVM architecture.
+
+---
+
+## SwiftData
+
+Models should use `@Model`.
+
+Example models:
+- `Show`
+- `Episode`
+- `StreamingService`
+
+Keep models strongly typed and minimal.  
+Use `@Environment(\.modelContext)` for writes, `@Query` for reads.  
+Only use a custom `FetchDescriptor` when sorting or filtering requires it.
+
+---
+
+## UI Design Rules
+
+Follow modern SwiftUI design patterns.
+
+Views should:
+- stay under ~200 lines when possible
+- be broken into smaller components
+- prioritize readability
+
+Use:
+- SF Symbols for all icons
+- SwiftUI modifiers
+- reusable components
+- `#Preview` in every view file
+
+Avoid deeply nested view hierarchies.  
+Prefer `foregroundStyle` over the deprecated `foregroundColor` for new code.
+
+---
+
+## Code Style
+
+Code must be:
+
+clean  
+readable  
+modular  
+
+Prefer:
+
+clear naming  
+small view structs  
+simple logic  
+
+Avoid clever abstractions.  
+Do not leave debug `print` statements in committed code.  
+Add comments only when an architecture decision may not be obvious.
+
+---
+
+## Naming Conventions
+
+Views: `PascalCase`, suffix with `View`  
+`ShowDetailView`, `CalendarView`, `LibraryView`
+
+Sheets: suffix with `Sheet`  
+`AddShowSheet`
+
+Models: plain nouns, no suffix  
+`Show`, `Episode`
+
+Boolean state: `is` or `showing` prefix  
+`isValid`, `showingAddSheet`, `isLoading`
+
+---
+
+## When Adding a Feature
+
+1. Create or update the SwiftData model
+2. Create the SwiftUI view
+3. Extract reusable sub-views or components as needed
+4. Add a service or ViewModel only if the feature requires networking or complex shared state
