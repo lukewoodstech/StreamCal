@@ -1,32 +1,28 @@
 import SwiftUI
+import SwiftData
 
 struct ContentView: View {
-    
+
     var body: some View {
         TabView {
-            
-            NextUpView()
-                .tabItem {
-                    Image(systemName: "play.circle.fill")
-                    Text("Next Up")
-                }
-            
-            CalendarView()
-                .tabItem {
-                    Image(systemName: "calendar")
-                    Text("Calendar")
-                }
-            
             LibraryView()
                 .tabItem {
-                    Image(systemName: "rectangle.stack.fill")
-                    Text("Library")
+                    Label("Library", systemImage: "rectangle.stack.fill")
                 }
-            
+
+            NextUpView()
+                .tabItem {
+                    Label("Next Up", systemImage: "play.circle.fill")
+                }
+
+            CalendarView()
+                .tabItem {
+                    Label("Calendar", systemImage: "calendar")
+                }
+
             SettingsView()
                 .tabItem {
-                    Image(systemName: "gearshape.fill")
-                    Text("Settings")
+                    Label("Settings", systemImage: "gearshape.fill")
                 }
         }
     }
@@ -34,4 +30,5 @@ struct ContentView: View {
 
 #Preview {
     ContentView()
+        .modelContainer(for: [Show.self, Episode.self], inMemory: true)
 }
