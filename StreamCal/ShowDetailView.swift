@@ -8,10 +8,16 @@ struct ShowDetailView: View {
 
     @State private var showingEditShow = false
     @State private var showingAddEpisode = false
+    @State private var isRefreshing = false
+    @State private var refreshError: String? = nil
 
     var body: some View {
         List {
+            posterSection
             showInfoSection
+            if let overview = show.overview, !overview.isEmpty {
+                overviewSection(overview)
+            }
             episodesSection
         }
         .navigationTitle(show.title)
@@ -20,6 +26,14 @@ struct ShowDetailView: View {
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {
                     Button("Edit Show") { showingEditShow = true }
+                    if show.tmdbID != nil {
+                        Button {
+                            Task { await refreshEpisodes() }
+                        } label: {
+                            Label("Refresh Episodes", systemImage: "arrow.clockwise")
+                        }
+                    }
+                    Divider()
                     Button(show.isArchived ? "Unarchive" : "Archive") {
                         show.isArchived.toggle()
                         show.updatedAt = .now
@@ -37,29 +51,86 @@ struct ShowDetailView: View {
         }
     }
 
+    // MARK: - Poster
+
+    @ViewBuilder
+    private var posterSection: some View {
+        if let urlString = show.posterURL, let url = URL(string: urlString) {
+            Section {
+                HStack {
+                    Spacer()
+                    AsyncImage(url: url) { phase in
+                        switch phase {
+                        case .success(let image):
+                            image
+                                .resizable()
+                                .aspectRatio(contentMode: .fit)
+                                .clipShape(RoundedRectangle(cornerRadius: 10))
+                                .shadow(radius: 4)
+                        case .failure, .empty:
+                            EmptyView()
+                        @unknown default:
+                            EmptyView()
+                        }
+                    }
+                    .frame(maxWidth: 160, maxHeight: 240)
+                    Spacer()
+                }
+                .listRowBackground(Color.clear)
+                .listRowInsets(EdgeInsets(top: 8, leading: 0, bottom: 8, trailing: 0))
+            }
+        }
+    }
+
+    // MARK: - Info
+
     private var showInfoSection: some View {
-        Section {
+        Section("Info") {
             LabeledContent("Platform") {
                 PlatformBadge(platform: show.platform)
             }
-            if !show.notes.isEmpty {
-                Text(show.notes)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
+            if let status = show.showStatus, !status.isEmpty {
+                LabeledContent("Status", value: status)
             }
             if show.isArchived {
                 Label("Archived", systemImage: "archivebox")
                     .font(.subheadline)
                     .foregroundStyle(.orange)
             }
-        } header: {
-            Text("Info")
+            if !show.notes.isEmpty {
+                Text(show.notes)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
         }
     }
 
+    // MARK: - Overview
+
+    private func overviewSection(_ overview: String) -> some View {
+        Section("Overview") {
+            Text(overview)
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    // MARK: - Episodes
+
     private var episodesSection: some View {
         Section {
-            if show.sortedEpisodes.isEmpty {
+            if isRefreshing {
+                HStack {
+                    ProgressView()
+                    Text("Refreshing episodes…")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+            } else if let error = refreshError {
+                Label(error, systemImage: "exclamationmark.triangle")
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+            } else if show.sortedEpisodes.isEmpty {
                 Text("No episodes yet.")
                     .foregroundStyle(.tertiary)
             } else {
@@ -100,7 +171,45 @@ struct ShowDetailView: View {
             }
         }
     }
+
+    // MARK: - Refresh
+
+    private func refreshEpisodes() async {
+        guard let tmdbID = show.tmdbID else { return }
+        isRefreshing = true
+        refreshError = nil
+
+        do {
+            let freshEpisodes = try await TMDBService.shared.fetchAllEpisodes(tmdbID: tmdbID)
+
+            // Build a set of existing (season, episode) pairs so we only add new ones
+            let existing = Set(show.episodes.map { "\($0.seasonNumber)-\($0.episodeNumber)" })
+
+            for ep in freshEpisodes {
+                let key = "\(ep.seasonNumber)-\(ep.episodeNumber)"
+                guard !existing.contains(key) else { continue }
+                let airDate = ep.parsedAirDate ?? Date.distantFuture
+                let episode = Episode(
+                    seasonNumber: ep.seasonNumber,
+                    episodeNumber: ep.episodeNumber,
+                    title: ep.name ?? "",
+                    airDate: airDate,
+                    isWatched: false
+                )
+                episode.show = show
+                modelContext.insert(episode)
+            }
+
+            show.updatedAt = .now
+        } catch {
+            refreshError = error.localizedDescription
+        }
+
+        isRefreshing = false
+    }
 }
+
+// MARK: - Episode Row
 
 struct EpisodeRowView: View {
     let episode: Episode
@@ -132,17 +241,13 @@ private struct ShowDetailPreviewWrapper: View {
     var body: some View {
         let config = ModelConfiguration(isStoredInMemoryOnly: true)
         let container = try! ModelContainer(for: Show.self, Episode.self, configurations: config)
-        let show = Show(title: "Severance", platform: "Apple TV+", notes: "Great thriller")
+        let show = Show(title: "Severance", platform: "Apple TV+", notes: "Great thriller",
+                        overview: "A thriller about work-life separation taken to the extreme.")
         container.mainContext.insert(show)
         let ep1 = Episode(seasonNumber: 2, episodeNumber: 1, title: "Goodbye, Mrs. Selvig",
                           airDate: Calendar.current.date(byAdding: .day, value: 3, to: .now)!)
         ep1.show = show
         container.mainContext.insert(ep1)
-        let ep2 = Episode(seasonNumber: 2, episodeNumber: 2, title: "Famine, Flood, and Fire",
-                          airDate: Calendar.current.date(byAdding: .day, value: 10, to: .now)!,
-                          isWatched: false)
-        ep2.show = show
-        container.mainContext.insert(ep2)
         return NavigationStack {
             ShowDetailView(show: show)
         }

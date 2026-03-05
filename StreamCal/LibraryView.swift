@@ -98,22 +98,51 @@ struct LibraryView: View {
 struct ShowRowView: View {
     let show: Show
 
+    private var posterURL: URL? {
+        guard let s = show.posterURL else { return nil }
+        return URL(string: s)
+    }
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack {
-                Text(show.title)
-                    .font(.headline)
-                Spacer()
-                PlatformBadge(platform: show.platform)
+        HStack(spacing: 12) {
+            AsyncImage(url: posterURL) { phase in
+                switch phase {
+                case .success(let image):
+                    image
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                case .failure, .empty:
+                    Rectangle()
+                        .foregroundStyle(Color(.systemGray5))
+                        .overlay {
+                            Image(systemName: "tv")
+                                .foregroundStyle(.tertiary)
+                                .imageScale(.small)
+                        }
+                @unknown default:
+                    Rectangle()
+                        .foregroundStyle(Color(.systemGray5))
+                }
             }
-            if let dateText = show.nextEpisodeDateText {
-                Label(dateText, systemImage: "calendar")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            } else {
-                Text("No upcoming episodes")
-                    .font(.caption)
-                    .foregroundStyle(.tertiary)
+            .frame(width: 40, height: 60)
+            .clipShape(RoundedRectangle(cornerRadius: 5))
+
+            VStack(alignment: .leading, spacing: 4) {
+                HStack {
+                    Text(show.title)
+                        .font(.headline)
+                    Spacer()
+                    PlatformBadge(platform: show.platform)
+                }
+                if let dateText = show.nextEpisodeDateText {
+                    Label(dateText, systemImage: "calendar")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                } else {
+                    Text("No upcoming episodes")
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
+                }
             }
         }
         .padding(.vertical, 2)

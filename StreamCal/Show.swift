@@ -22,6 +22,12 @@ final class Show {
     var createdAt: Date
     var updatedAt: Date
 
+    // TMDB metadata — nil until the show is imported from search
+    var tmdbID: Int?
+    var posterURL: String?
+    var overview: String?
+    var showStatus: String?
+
     @Relationship(deleteRule: .cascade, inverse: \Episode.show)
     var episodes: [Episode] = []
 
@@ -31,7 +37,11 @@ final class Show {
         notes: String = "",
         isArchived: Bool = false,
         createdAt: Date = .now,
-        updatedAt: Date = .now
+        updatedAt: Date = .now,
+        tmdbID: Int? = nil,
+        posterURL: String? = nil,
+        overview: String? = nil,
+        showStatus: String? = nil
     ) {
         self.title = title
         self.platform = platform
@@ -39,6 +49,10 @@ final class Show {
         self.isArchived = isArchived
         self.createdAt = createdAt
         self.updatedAt = updatedAt
+        self.tmdbID = tmdbID
+        self.posterURL = posterURL
+        self.overview = overview
+        self.showStatus = showStatus
     }
 
     /// The earliest unwatched episode with an airDate >= today.
