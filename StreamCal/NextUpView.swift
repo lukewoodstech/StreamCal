@@ -145,12 +145,14 @@ struct NextUpRowView: View {
         return URL(string: s)
     }
 
-    private var isToday: Bool {
-        Calendar.current.isDateInToday(episode.airDate)
-    }
-
+    private var isTBA: Bool { episode.airDate == .distantFuture }
+    private var isToday: Bool { Calendar.current.isDateInToday(episode.airDate) }
     private var daysUntil: Int {
-        Calendar.current.dateComponents([.day], from: Calendar.current.startOfDay(for: .now), to: Calendar.current.startOfDay(for: episode.airDate)).day ?? 0
+        Calendar.current.dateComponents(
+            [.day],
+            from: Calendar.current.startOfDay(for: .now),
+            to: Calendar.current.startOfDay(for: episode.airDate)
+        ).day ?? 0
     }
 
     var body: some View {
@@ -193,6 +195,10 @@ struct NextUpRowView: View {
                             .font(.caption)
                             .fontWeight(.semibold)
                             .foregroundStyle(.orange)
+                    } else if isTBA {
+                        Label("Date TBA", systemImage: "calendar.badge.clock")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
                     } else {
                         Image(systemName: "calendar")
                             .imageScale(.small)

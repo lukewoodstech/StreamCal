@@ -65,21 +65,21 @@ struct SettingsView: View {
                     Button("Delete All Data", role: .destructive) {
                         showingDeleteAllConfirm = true
                     }
-                    .confirmationDialog(
-                        "Delete All Data?",
-                        isPresented: $showingDeleteAllConfirm,
-                        titleVisibility: .visible
-                    ) {
-                        Button("Delete All Data", role: .destructive) { deleteAllData() }
-                        Button("Cancel", role: .cancel) {}
-                    } message: {
-                        Text("This will permanently delete all shows and episodes. This cannot be undone.")
-                    }
                 }
             }
             .navigationTitle("Settings")
             .task {
                 notificationStatus = await NotificationService.shared.authorizationStatus()
+            }
+            .confirmationDialog(
+                "Delete All Data?",
+                isPresented: $showingDeleteAllConfirm,
+                titleVisibility: .visible
+            ) {
+                Button("Delete All Data", role: .destructive) { deleteAllData() }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("This will permanently delete all shows and episodes. This cannot be undone.")
             }
         }
     }

@@ -55,17 +55,27 @@ final class Show {
         self.showStatus = showStatus
     }
 
-    /// The earliest unwatched episode with an airDate >= today.
+    /// The earliest unwatched episode that hasn't aired yet, including TBA episodes.
     var nextUpcomingEpisode: Episode? {
         let today = Calendar.current.startOfDay(for: .now)
+        // Include distantFuture (TBA) episodes — sort them after real dates
         return episodes
-            .filter { !$0.isWatched && $0.airDate >= today }
-            .sorted { $0.airDate < $1.airDate }
+            .filter { !$0.isWatched && ($0.airDate >= today || $0.airDate == .distantFuture) }
+            .sorted {
+                if $0.airDate == .distantFuture && $1.airDate == .distantFuture {
+                    if $0.seasonNumber != $1.seasonNumber { return $0.seasonNumber < $1.seasonNumber }
+                    return $0.episodeNumber < $1.episodeNumber
+                }
+                if $0.airDate == .distantFuture { return false }
+                if $1.airDate == .distantFuture { return true }
+                return $0.airDate < $1.airDate
+            }
             .first
     }
 
     var nextEpisodeDateText: String? {
         guard let ep = nextUpcomingEpisode else { return nil }
+        if ep.airDate == .distantFuture { return "TBA" }
         let formatter = DateFormatter()
         formatter.dateStyle = .medium
         formatter.timeStyle = .none
