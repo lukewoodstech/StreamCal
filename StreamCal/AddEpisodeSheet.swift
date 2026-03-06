@@ -43,7 +43,6 @@ struct AddEpisodeSheet: View {
                 }
             }
             .onAppear {
-                // Pre-fill next logical episode number
                 let existing = show.sortedEpisodes
                 if let last = existing.last {
                     seasonNumber = last.seasonNumber

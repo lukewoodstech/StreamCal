@@ -14,6 +14,7 @@ struct AddShowSheet: View {
     @State private var isImporting = false
     @State private var importError: String? = nil
     @State private var searchTask: Task<Void, Never>? = nil
+    @State private var libraryTMDBIDs: Set<Int> = []
 
     // Edit-mode fields
     @State private var editPlatform = StreamingPlatform.netflix.rawValue
@@ -48,6 +49,7 @@ struct AddShowSheet: View {
                     editPlatform = show.platform
                     editNotes = show.notes
                 }
+                loadLibraryIDs()
             }
         }
     }
@@ -82,12 +84,15 @@ struct AddShowSheet: View {
                 ContentUnavailableView.search(text: searchText)
             } else {
                 ForEach(results) { show in
+                    let alreadyAdded = libraryTMDBIDs.contains(show.id)
                     Button {
+                        guard !alreadyAdded else { return }
                         Task { await importShow(show) }
                     } label: {
-                        SearchResultRow(show: show)
+                        SearchResultRow(show: show, alreadyAdded: alreadyAdded)
                     }
                     .buttonStyle(.plain)
+                    .disabled(alreadyAdded)
                 }
             }
         }
@@ -122,6 +127,13 @@ struct AddShowSheet: View {
     }
 
     // MARK: - Search Logic
+
+    private func loadLibraryIDs() {
+        let descriptor = FetchDescriptor<Show>()
+        if let shows = try? modelContext.fetch(descriptor) {
+            libraryTMDBIDs = Set(shows.compactMap { $0.tmdbID })
+        }
+    }
 
     private func scheduleSearch(query: String) {
         searchTask?.cancel()
@@ -184,6 +196,8 @@ struct AddShowSheet: View {
                 modelContext.insert(episode)
             }
 
+            await NotificationService.shared.scheduleNotifications(for: show)
+
             dismiss()
         } catch {
             importError = error.localizedDescription
@@ -203,7 +217,6 @@ struct AddShowSheet: View {
 
     // MARK: - Helpers
 
-    /// Map TMDB network names to our StreamingPlatform enum values.
     private func platformFromNetworks(_ networks: [TMDBNetwork]?) -> String {
         guard let networks else { return StreamingPlatform.other.rawValue }
         let names = networks.map { $0.name.lowercased() }
@@ -223,6 +236,7 @@ struct AddShowSheet: View {
 
 struct SearchResultRow: View {
     let show: TMDBShow
+    let alreadyAdded: Bool
 
     var body: some View {
         HStack(spacing: 12) {
@@ -246,11 +260,13 @@ struct SearchResultRow: View {
             }
             .frame(width: 46, height: 69)
             .clipShape(RoundedRectangle(cornerRadius: 6))
+            .opacity(alreadyAdded ? 0.5 : 1)
 
             VStack(alignment: .leading, spacing: 4) {
                 Text(show.name)
                     .font(.headline)
                     .lineLimit(2)
+                    .foregroundStyle(alreadyAdded ? .secondary : .primary)
                 if let year = show.firstAirDate?.prefix(4) {
                     Text(year)
                         .font(.caption)
@@ -266,9 +282,18 @@ struct SearchResultRow: View {
 
             Spacer()
 
-            Image(systemName: "plus.circle")
-                .foregroundStyle(Color.accentColor)
-                .imageScale(.large)
+            if alreadyAdded {
+                Label("In Library", systemImage: "checkmark.circle.fill")
+                    .font(.caption)
+                    .fontWeight(.medium)
+                    .foregroundStyle(.green)
+                    .labelStyle(.iconOnly)
+                    .imageScale(.large)
+            } else {
+                Image(systemName: "plus.circle")
+                    .foregroundStyle(Color.accentColor)
+                    .imageScale(.large)
+            }
         }
         .padding(.vertical, 4)
     }

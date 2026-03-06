@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import UserNotifications
 
 struct SettingsView: View {
 
@@ -9,6 +10,7 @@ struct SettingsView: View {
     @Query private var episodes: [Episode]
 
     @State private var showingDeleteAllConfirm = false
+    @State private var notificationStatus: UNAuthorizationStatus = .notDetermined
 
     private var appVersion: String {
         Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "—"
@@ -25,6 +27,38 @@ struct SettingsView: View {
                     LabeledContent("Version", value: "\(appVersion) (\(buildNumber))")
                     LabeledContent("Shows", value: "\(shows.count)")
                     LabeledContent("Episodes", value: "\(episodes.count)")
+                }
+
+                Section("Notifications") {
+                    switch notificationStatus {
+                    case .authorized:
+                        Label("Enabled", systemImage: "bell.fill")
+                            .foregroundStyle(.green)
+                    case .denied:
+                        VStack(alignment: .leading, spacing: 6) {
+                            Label("Disabled", systemImage: "bell.slash")
+                                .foregroundStyle(.orange)
+                            Text("Enable notifications in iOS Settings to get episode reminders.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            Button("Open Settings") {
+                                if let url = URL(string: UIApplication.openSettingsURLString) {
+                                    UIApplication.shared.open(url)
+                                }
+                            }
+                            .font(.caption)
+                        }
+                    case .notDetermined:
+                        Button("Enable Episode Notifications") {
+                            Task {
+                                await NotificationService.shared.requestPermission()
+                                notificationStatus = await NotificationService.shared.authorizationStatus()
+                            }
+                        }
+                    default:
+                        Label("Unknown", systemImage: "bell")
+                            .foregroundStyle(.secondary)
+                    }
                 }
 
                 Section("Data") {
@@ -44,6 +78,9 @@ struct SettingsView: View {
                 }
             }
             .navigationTitle("Settings")
+            .task {
+                notificationStatus = await NotificationService.shared.authorizationStatus()
+            }
         }
     }
 

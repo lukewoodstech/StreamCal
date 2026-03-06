@@ -146,6 +146,10 @@ struct ShowDetailView: View {
                         .swipeActions(edge: .leading) {
                             Button {
                                 episode.isWatched.toggle()
+                                let capturedShow = show
+                                Task {
+                                    await NotificationService.shared.scheduleNotifications(for: capturedShow)
+                                }
                             } label: {
                                 Label(
                                     episode.isWatched ? "Unwatch" : "Watched",
@@ -201,6 +205,7 @@ struct ShowDetailView: View {
             }
 
             show.updatedAt = .now
+            await NotificationService.shared.scheduleNotifications(for: show)
         } catch {
             refreshError = error.localizedDescription
         }

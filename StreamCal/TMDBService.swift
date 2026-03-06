@@ -84,7 +84,7 @@ struct TMDBEpisode: Decodable, Sendable {
 
 // MARK: - TMDB Service
 
-actor TMDBService {
+final class TMDBService: Sendable {
 
     static let shared = TMDBService()
 
