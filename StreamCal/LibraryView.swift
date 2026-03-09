@@ -76,6 +76,9 @@ struct LibraryView: View {
                             }
                         }
                     }
+                    .refreshable {
+                        await RefreshService.shared.refreshAllShows(modelContext: modelContext)
+                    }
                 }
             }
             .navigationTitle("Library")

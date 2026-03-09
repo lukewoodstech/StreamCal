@@ -3,21 +3,30 @@ import SwiftData
 
 struct CalendarView: View {
 
+    @Environment(\.modelContext) private var modelContext
+
     @Query(sort: \Episode.airDate)
     private var allEpisodes: [Episode]
 
     private var calendar: Calendar { Calendar.current }
 
-    private var upcomingEpisodes: [Episode] {
+    /// Show 7 days back through 60 days forward — gives context on recent airings
+    /// and a meaningful look-ahead window.
+    private var windowEpisodes: [Episode] {
         let today = calendar.startOfDay(for: .now)
-        guard let cutoff = calendar.date(byAdding: .day, value: 30, to: today) else { return [] }
-        return allEpisodes.filter { $0.airDate >= today && $0.airDate < cutoff }
+        guard
+            let start = calendar.date(byAdding: .day, value: -7, to: today),
+            let end = calendar.date(byAdding: .day, value: 60, to: today)
+        else { return [] }
+        return allEpisodes.filter {
+            $0.airDate != .distantFuture && $0.airDate >= start && $0.airDate < end
+        }
     }
 
     /// Episodes grouped by their calendar day, sorted ascending.
     private var groupedByDay: [(date: Date, episodes: [Episode])] {
         var dict: [Date: [Episode]] = [:]
-        for ep in upcomingEpisodes {
+        for ep in windowEpisodes {
             let day = calendar.startOfDay(for: ep.airDate)
             dict[day, default: []].append(ep)
         }
@@ -31,9 +40,9 @@ struct CalendarView: View {
             Group {
                 if groupedByDay.isEmpty {
                     ContentUnavailableView(
-                        "No Upcoming Episodes",
+                        "Nothing Scheduled",
                         systemImage: "calendar.badge.clock",
-                        description: Text("Episodes in the next 30 days will appear here.")
+                        description: Text("Add shows to your library to see upcoming episodes.")
                     )
                 } else {
                     List {
@@ -46,6 +55,9 @@ struct CalendarView: View {
                         }
                     }
                     .listStyle(.insetGrouped)
+                    .refreshable {
+                        await RefreshService.shared.refreshAllShows(modelContext: modelContext)
+                    }
                 }
             }
             .navigationTitle("Calendar")
@@ -78,16 +90,38 @@ struct DayHeaderView: View {
 struct CalendarEpisodeRowView: View {
     let episode: Episode
 
+    private var isInPast: Bool {
+        episode.airDate < Calendar.current.startOfDay(for: .now)
+    }
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 3) {
-            if let showTitle = episode.show?.title {
-                Text(showTitle)
-                    .font(.subheadline)
-                    .fontWeight(.medium)
+        HStack {
+            VStack(alignment: .leading, spacing: 3) {
+                if let showTitle = episode.show?.title {
+                    Text(showTitle)
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                        .foregroundStyle(episode.isWatched ? .secondary : .primary)
+                }
+                Text(episode.displayTitle)
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
             }
-            Text(episode.displayTitle)
-                .font(.caption)
-                .foregroundStyle(.secondary)
+            Spacer()
+            if episode.isWatched {
+                Image(systemName: "checkmark.circle.fill")
+                    .foregroundStyle(.green)
+                    .imageScale(.small)
+            } else if isInPast {
+                Text("Unwatched")
+                    .font(.caption2)
+                    .fontWeight(.medium)
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(Color.blue)
+                    .clipShape(Capsule())
+            }
         }
         .padding(.vertical, 1)
     }

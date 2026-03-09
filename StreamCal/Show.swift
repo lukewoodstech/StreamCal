@@ -55,12 +55,24 @@ final class Show {
         self.showStatus = showStatus
     }
 
-    /// The earliest unwatched episode that hasn't aired yet, including TBA episodes.
+    /// The next episode the user should watch: the earliest unwatched episode,
+    /// regardless of whether it has aired yet. Prioritises already-aired episodes
+    /// (watch backlog) over future/TBA ones.
+    var nextToWatch: Episode? {
+        let unwatched = episodes.filter { !$0.isWatched }
+        return unwatched.sorted {
+            // Sort by season → episode number so the user always gets the logical next ep
+            if $0.seasonNumber != $1.seasonNumber { return $0.seasonNumber < $1.seasonNumber }
+            return $0.episodeNumber < $1.episodeNumber
+        }.first
+    }
+
+    /// The next episode that has not yet aired (strictly in the future or TBA).
+    /// Used for the calendar and countdown displays.
     var nextUpcomingEpisode: Episode? {
         let today = Calendar.current.startOfDay(for: .now)
-        // Include distantFuture (TBA) episodes — sort them after real dates
         return episodes
-            .filter { !$0.isWatched && ($0.airDate >= today || $0.airDate == .distantFuture) }
+            .filter { !$0.isWatched && ($0.airDate > today || $0.airDate == .distantFuture) }
             .sorted {
                 if $0.airDate == .distantFuture && $1.airDate == .distantFuture {
                     if $0.seasonNumber != $1.seasonNumber { return $0.seasonNumber < $1.seasonNumber }
@@ -73,9 +85,17 @@ final class Show {
             .first
     }
 
+    /// True when the show has unwatched episodes that have already aired.
+    var hasWatchBacklog: Bool {
+        let today = Calendar.current.startOfDay(for: .now)
+        return episodes.contains { !$0.isWatched && $0.airDate <= today && $0.airDate != .distantFuture }
+    }
+
     var nextEpisodeDateText: String? {
-        guard let ep = nextUpcomingEpisode else { return nil }
+        guard let ep = nextToWatch else { return nil }
         if ep.airDate == .distantFuture { return "TBA" }
+        let today = Calendar.current.startOfDay(for: .now)
+        if ep.airDate <= today { return "Available now" }
         let formatter = DateFormatter()
         formatter.dateStyle = .medium
         formatter.timeStyle = .none

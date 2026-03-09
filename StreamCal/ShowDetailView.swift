@@ -33,6 +33,21 @@ struct ShowDetailView: View {
                             Label("Refresh Episodes", systemImage: "arrow.clockwise")
                         }
                     }
+                    let airedUnwatched = show.episodes.filter {
+                        !$0.isWatched &&
+                        $0.airDate != .distantFuture &&
+                        $0.airDate <= Calendar.current.startOfDay(for: .now)
+                    }
+                    if !airedUnwatched.isEmpty {
+                        Button {
+                            for ep in airedUnwatched { ep.isWatched = true }
+                            Task {
+                                await NotificationService.shared.scheduleNotifications(for: show)
+                            }
+                        } label: {
+                            Label("Mark All Aired as Watched", systemImage: "checkmark.circle.fill")
+                        }
+                    }
                     Divider()
                     Button(show.isArchived ? "Unarchive" : "Archive") {
                         show.isArchived.toggle()

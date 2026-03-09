@@ -3,6 +3,8 @@ import SwiftData
 
 struct NextUpView: View {
 
+    @Environment(\.modelContext) private var modelContext
+
     @Query(sort: \Show.title)
     private var shows: [Show]
 
@@ -10,20 +12,53 @@ struct NextUpView: View {
         shows.filter { !$0.isArchived }
     }
 
-    private var nextUpItems: [(show: Show, episode: Episode)] {
-        activeShows
-            .compactMap { show in
-                guard let ep = show.nextUpcomingEpisode else { return nil }
-                return (show, ep)
-            }
-            .sorted { $0.episode.airDate < $1.episode.airDate }
+    // Episodes airing today (unwatched, future-dated)
+    private var airingToday: [(show: Show, episode: Episode)] {
+        activeShows.compactMap { show in
+            guard let ep = show.nextUpcomingEpisode,
+                  Calendar.current.isDateInToday(ep.airDate) else { return nil }
+            return (show, ep)
+        }
     }
 
-    /// Shows that are tracked but have no upcoming episodes (caught up or ended).
+    // Unwatched episodes that have already aired — watch backlog
+    private var watchNext: [(show: Show, episode: Episode)] {
+        activeShows.compactMap { show in
+            guard let ep = show.nextToWatch,
+                  ep.airDate != .distantFuture else { return nil }
+            let today = Calendar.current.startOfDay(for: .now)
+            guard ep.airDate <= today else { return nil }
+            // Skip shows already represented in "Airing Today"
+            guard !Calendar.current.isDateInToday(ep.airDate) else { return nil }
+            return (show, ep)
+        }.sorted {
+            // Sort by season/episode so the user sees the right order
+            if $0.show.title != $1.show.title { return $0.show.title < $1.show.title }
+            if $0.episode.seasonNumber != $1.episode.seasonNumber { return $0.episode.seasonNumber < $1.episode.seasonNumber }
+            return $0.episode.episodeNumber < $1.episode.episodeNumber
+        }
+    }
+
+    // Future unwatched episodes (not today, not already aired)
+    private var comingUp: [(show: Show, episode: Episode)] {
+        let today = Calendar.current.startOfDay(for: .now)
+        return activeShows.compactMap { show in
+            guard let ep = show.nextUpcomingEpisode,
+                  ep.airDate > today,
+                  !Calendar.current.isDateInToday(ep.airDate) else { return nil }
+            return (show, ep)
+        }.sorted { $0.episode.airDate < $1.episode.airDate }
+    }
+
+    // Shows fully caught up: all episodes watched or no episodes at all
     private var caughtUpShows: [Show] {
         activeShows.filter { show in
-            show.nextUpcomingEpisode == nil && !show.episodes.isEmpty
+            show.nextToWatch == nil && !show.episodes.isEmpty
         }
+    }
+
+    private var hasAnything: Bool {
+        !airingToday.isEmpty || !watchNext.isEmpty || !comingUp.isEmpty
     }
 
     var body: some View {
@@ -35,7 +70,7 @@ struct NextUpView: View {
                         systemImage: "play.circle",
                         description: Text("Add shows from the Library tab to start tracking.")
                     )
-                } else if nextUpItems.isEmpty {
+                } else if !hasAnything {
                     allCaughtUpView
                 } else {
                     list
@@ -57,7 +92,7 @@ struct NextUpView: View {
                     Text("All Caught Up")
                         .font(.title2)
                         .fontWeight(.semibold)
-                    Text("No upcoming episodes right now.\nCheck back after new episodes air.")
+                    Text("You're up to date on everything.\nCheck back when new episodes air.")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)
@@ -69,7 +104,6 @@ struct NextUpView: View {
                         Text("Following")
                             .font(.headline)
                             .padding(.horizontal)
-
                         ForEach(caughtUpShows) { show in
                             CaughtUpRowView(show: show)
                         }
@@ -78,19 +112,18 @@ struct NextUpView: View {
             }
             .padding(.bottom, 32)
         }
+        .refreshable {
+            await RefreshService.shared.refreshAllShows(modelContext: modelContext)
+        }
     }
 
     // MARK: - List
 
     private var list: some View {
         List {
-            // "Airing Today" section
-            let today = nextUpItems.filter { Calendar.current.isDateInToday($0.episode.airDate) }
-            let upcoming = nextUpItems.filter { !Calendar.current.isDateInToday($0.episode.airDate) }
-
-            if !today.isEmpty {
+            if !airingToday.isEmpty {
                 Section {
-                    ForEach(today, id: \.episode.persistentModelID) { item in
+                    ForEach(airingToday, id: \.episode.persistentModelID) { item in
                         NextUpRowView(show: item.show, episode: item.episode)
                     }
                 } header: {
@@ -102,22 +135,32 @@ struct NextUpView: View {
                 }
             }
 
-            if !upcoming.isEmpty {
+            if !watchNext.isEmpty {
                 Section {
-                    ForEach(upcoming, id: \.episode.persistentModelID) { item in
+                    ForEach(watchNext, id: \.episode.persistentModelID) { item in
                         NextUpRowView(show: item.show, episode: item.episode)
                     }
                 } header: {
-                    if !today.isEmpty {
-                        Text("Coming Up")
-                            .font(.subheadline)
-                            .fontWeight(.semibold)
-                            .textCase(nil)
-                    }
+                    Label("Watch Next", systemImage: "play.circle.fill")
+                        .font(.subheadline)
+                        .fontWeight(.semibold)
+                        .textCase(nil)
                 }
             }
 
-            // Caught-up shows at the bottom as a collapsed hint
+            if !comingUp.isEmpty {
+                Section {
+                    ForEach(comingUp, id: \.episode.persistentModelID) { item in
+                        NextUpRowView(show: item.show, episode: item.episode)
+                    }
+                } header: {
+                    Text("Coming Up")
+                        .font(.subheadline)
+                        .fontWeight(.semibold)
+                        .textCase(nil)
+                }
+            }
+
             if !caughtUpShows.isEmpty {
                 Section {
                     ForEach(caughtUpShows) { show in
@@ -130,6 +173,9 @@ struct NextUpView: View {
                         .textCase(nil)
                 }
             }
+        }
+        .refreshable {
+            await RefreshService.shared.refreshAllShows(modelContext: modelContext)
         }
     }
 }
@@ -147,6 +193,9 @@ struct NextUpRowView: View {
 
     private var isTBA: Bool { episode.airDate == .distantFuture }
     private var isToday: Bool { Calendar.current.isDateInToday(episode.airDate) }
+    private var isAvailableNow: Bool {
+        !isTBA && episode.airDate <= Calendar.current.startOfDay(for: .now)
+    }
     private var daysUntil: Int {
         Calendar.current.dateComponents(
             [.day],
@@ -191,10 +240,15 @@ struct NextUpRowView: View {
 
                 HStack(spacing: 6) {
                     if isToday {
-                        Label("Today", systemImage: "star.fill")
+                        Label("Airing Today", systemImage: "star.fill")
                             .font(.caption)
                             .fontWeight(.semibold)
                             .foregroundStyle(.orange)
+                    } else if isAvailableNow {
+                        Label("Available now", systemImage: "play.circle.fill")
+                            .font(.caption)
+                            .fontWeight(.semibold)
+                            .foregroundStyle(.blue)
                     } else if isTBA {
                         Label("Date TBA", systemImage: "calendar.badge.clock")
                             .font(.caption)
