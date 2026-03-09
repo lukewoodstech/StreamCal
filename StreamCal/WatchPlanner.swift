@@ -92,7 +92,6 @@ final class WatchPlanner {
     /// One entry per show: the next unwatched aired episode.
     /// Excludes shows that are planned for today (they're already in tonightsPlan).
     static func continueWatching(from shows: [Show]) -> [(show: Show, episode: Episode)] {
-        let today = Calendar.current.startOfDay(for: .now)
         return shows
             .filter { !$0.isArchived }
             .compactMap { show -> (Show, Episode)? in

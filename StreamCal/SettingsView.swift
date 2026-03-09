@@ -10,6 +10,7 @@ struct SettingsView: View {
     @Query private var episodes: [Episode]
 
     @State private var showingDeleteAllConfirm = false
+    @State private var showingDeletedBanner = false
     @State private var notificationStatus: UNAuthorizationStatus = .notDetermined
 
     private var appVersion: String {
@@ -62,8 +63,20 @@ struct SettingsView: View {
                 }
 
                 Section("Data") {
+                    // Attach confirmationDialog directly to the button so the
+                    // action sheet anchors to the right place on screen.
                     Button("Delete All Data", role: .destructive) {
                         showingDeleteAllConfirm = true
+                    }
+                    .confirmationDialog(
+                        "Delete All Data?",
+                        isPresented: $showingDeleteAllConfirm,
+                        titleVisibility: .visible
+                    ) {
+                        Button("Delete All Data", role: .destructive) { deleteAllData() }
+                        Button("Cancel", role: .cancel) {}
+                    } message: {
+                        Text("This will permanently delete all \(shows.count) shows and \(episodes.count) episodes. This cannot be undone.")
                     }
                 }
             }
@@ -71,22 +84,46 @@ struct SettingsView: View {
             .task {
                 notificationStatus = await NotificationService.shared.authorizationStatus()
             }
-            .confirmationDialog(
-                "Delete All Data?",
-                isPresented: $showingDeleteAllConfirm,
-                titleVisibility: .visible
-            ) {
-                Button("Delete All Data", role: .destructive) { deleteAllData() }
-                Button("Cancel", role: .cancel) {}
-            } message: {
-                Text("This will permanently delete all shows and episodes. This cannot be undone.")
+            // Success banner overlaid at the top
+            .overlay(alignment: .top) {
+                if showingDeletedBanner {
+                    HStack(spacing: 10) {
+                        Image(systemName: "checkmark.circle.fill")
+                            .foregroundStyle(.green)
+                        Text("All data deleted")
+                            .fontWeight(.medium)
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 12)
+                    .background(.regularMaterial, in: Capsule())
+                    .shadow(color: .black.opacity(0.12), radius: 8, y: 4)
+                    .padding(.top, 8)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+                }
             }
+            .animation(.spring(duration: 0.35), value: showingDeletedBanner)
         }
     }
 
     private func deleteAllData() {
-        for episode in episodes { modelContext.delete(episode) }
-        for show in shows { modelContext.delete(show) }
+        do {
+            UNUserNotificationCenter.current().removeAllPendingNotificationRequests()
+
+            // Delete Shows only — Episodes are cascade-deleted automatically
+            // via the @Relationship(deleteRule: .cascade) on Show.episodes.
+            // Trying to batch-delete Episodes first triggers a SwiftData OTO
+            // constraint violation on the Episode.show inverse relationship.
+            try modelContext.delete(model: Show.self)
+            try modelContext.save()
+
+            showingDeletedBanner = true
+            Task {
+                try? await Task.sleep(for: .seconds(2.5))
+                showingDeletedBanner = false
+            }
+        } catch {
+            print("Delete all data failed: \(error)")
+        }
     }
 
 }
