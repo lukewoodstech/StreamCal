@@ -12,17 +12,32 @@ struct CalendarView: View {
         WatchPlanner.calendarDays(from: allEpisodes)
     }
 
+    private var tbaEpisodes: [Episode] {
+        WatchPlanner.tbaEpisodes(from: allEpisodes)
+    }
+
+    private var hasAnything: Bool {
+        !calendarDays.isEmpty || !tbaEpisodes.isEmpty
+    }
+
     var body: some View {
         NavigationStack {
             Group {
-                if calendarDays.isEmpty {
-                    ContentUnavailableView(
-                        "Nothing Scheduled",
-                        systemImage: "calendar.badge.clock",
-                        description: Text("Add shows to your library to see upcoming episodes.")
-                    )
-                } else {
+                if hasAnything {
                     calendarList
+                } else {
+                    // Wrap empty state in a ScrollView so pull-to-refresh still works
+                    ScrollView {
+                        ContentUnavailableView(
+                            "Nothing Scheduled",
+                            systemImage: "calendar.badge.clock",
+                            description: Text("Add shows to your library to see upcoming episodes.")
+                        )
+                        .padding(.top, 80)
+                    }
+                    .refreshable {
+                        await RefreshService.shared.refreshAllShows(modelContext: modelContext)
+                    }
                 }
             }
             .navigationTitle("Release Radar")
@@ -38,6 +53,25 @@ struct CalendarView: View {
                     }
                 } header: {
                     CalendarDayHeader(day: day)
+                }
+            }
+
+            // TBA episodes — date not yet confirmed by the network
+            if !tbaEpisodes.isEmpty {
+                Section {
+                    ForEach(tbaEpisodes) { episode in
+                        CalendarEpisodeRow(episode: episode)
+                    }
+                } header: {
+                    HStack {
+                        Text("Date TBA")
+                            .font(.subheadline)
+                            .fontWeight(.semibold)
+                        Spacer()
+                        Text("Pull to refresh for updates")
+                            .font(.caption2)
+                            .foregroundStyle(.tertiary)
+                    }
                 }
             }
         }

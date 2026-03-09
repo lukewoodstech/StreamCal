@@ -14,7 +14,7 @@ enum StreamingPlatform: String, CaseIterable, Codable {
 }
 
 @Model
-final class Show {
+final class Show: Identifiable {
     var title: String
     var platform: String
     var notes: String

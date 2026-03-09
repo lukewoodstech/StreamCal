@@ -70,7 +70,7 @@ struct TMDBEpisode: Decodable, Sendable {
         guard let raw = airDate, !raw.isEmpty else { return nil }
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyy-MM-dd"
-        formatter.timeZone = TimeZone(identifier: "UTC")
+        formatter.timeZone = .current
         return formatter.date(from: raw)
     }
 

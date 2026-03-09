@@ -46,6 +46,15 @@ final class RefreshService {
 
             var changed = false
 
+            // DIAG: log what TMDB returned for future/TBA episodes
+            let today = Date()
+            let futureTMDB = freshEpisodes.filter { $0.parsedAirDate != nil && $0.parsedAirDate! > today }
+            let tbaTMDB = freshEpisodes.filter { $0.parsedAirDate == nil }
+            print("[StreamCal Diag] \(show.title) — TMDB returned \(freshEpisodes.count) total eps, \(futureTMDB.count) future, \(tbaTMDB.count) nil airDate (→ distantFuture)")
+            for ep in futureTMDB.prefix(5) {
+                print("[StreamCal Diag]   Future ep: S\(ep.seasonNumber)E\(ep.episodeNumber) rawAirDate='\(ep.airDate ?? "nil")' parsed=\(ep.parsedAirDate.map { "\($0)" } ?? "nil")")
+            }
+
             for tmdbEp in freshEpisodes {
                 let key = "\(tmdbEp.seasonNumber)-\(tmdbEp.episodeNumber)"
                 let freshDate = tmdbEp.parsedAirDate ?? Date.distantFuture
@@ -80,8 +89,16 @@ final class RefreshService {
             if changed {
                 show.updatedAt = .now
             }
+
+            // DIAG: log what ended up stored for this show after the refresh
+            let storedFuture = show.episodes.filter { $0.airDate > today && $0.airDate != .distantFuture }
+            let storedTBA = show.episodes.filter { $0.airDate == .distantFuture }
+            print("[StreamCal Diag] \(show.title) — after refresh: \(show.episodes.count) stored eps, \(storedFuture.count) with real future dates, \(storedTBA.count) TBA")
+            for ep in storedFuture.prefix(5) {
+                print("[StreamCal Diag]   Stored future: S\(ep.seasonNumber)E\(ep.episodeNumber) airDate=\(ep.airDate) isWatched=\(ep.isWatched)")
+            }
         } catch {
-            // Silently fail — don't surface network errors during background refresh
+            print("[StreamCal Diag] \(show.title) — refresh FAILED: \(error)")
         }
     }
 }

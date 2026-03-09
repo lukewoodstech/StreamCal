@@ -7,6 +7,8 @@ struct AddShowSheet: View {
 
     /// Pass an existing Show to edit metadata only (no re-import).
     var existingShow: Show? = nil
+    /// Called with the show title after a successful import.
+    var onAdded: ((String) -> Void)? = nil
 
     @State private var searchText = ""
     @State private var results: [TMDBShow] = []
@@ -15,10 +17,6 @@ struct AddShowSheet: View {
     @State private var importError: String? = nil
     @State private var searchTask: Task<Void, Never>? = nil
     @State private var libraryTMDBIDs: Set<Int> = []
-
-    // Post-import setup flow
-    @State private var importedShow: Show? = nil
-    @State private var showingSetupSheet = false
 
     // Edit-mode fields
     @State private var editPlatform = StreamingPlatform.netflix.rawValue
@@ -54,13 +52,6 @@ struct AddShowSheet: View {
                     editNotes = show.notes
                 }
                 loadLibraryIDs()
-            }
-            .sheet(isPresented: $showingSetupSheet, onDismiss: {
-                if importedShow != nil { dismiss() }
-            }) {
-                if let imported = importedShow {
-                    AddShowSetupSheet(show: imported)
-                }
             }
         }
     }
@@ -209,19 +200,9 @@ struct AddShowSheet: View {
 
             await NotificationService.shared.scheduleNotifications(for: show)
 
-            // If the show has aired episodes, present the setup flow so the user
-            // can tell us where they are instead of dumping everything as backlog.
-            let today = Calendar.current.startOfDay(for: .now)
-            let hasAiredEpisodes = show.episodes.contains {
-                $0.airDate <= today && $0.airDate != .distantFuture
-            }
-
-            if hasAiredEpisodes {
-                importedShow = show
-                showingSetupSheet = true
-            } else {
-                dismiss()
-            }
+            let title = show.title
+            dismiss()
+            onAdded?(title)
         } catch {
             importError = error.localizedDescription
             isImporting = false

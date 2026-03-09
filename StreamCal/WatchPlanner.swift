@@ -119,23 +119,33 @@ final class WatchPlanner {
             .sorted { $0.show.title < $1.show.title }
     }
 
-    // MARK: - Coming Soon (next 7 days, exclusive of today)
+    // MARK: - Up Next (all future episodes, exclusive of today)
 
-    /// Shows with a future episode in the next 7 days (not today, not backlog).
-    static func comingSoon(from shows: [Show]) -> [(show: Show, episode: Episode)] {
+    /// One entry per show: the next episode airing after today.
+    /// Excludes today's episodes (those are in newEpisodesToday) and
+    /// excludes shows already covered by tonight's plan.
+    /// TBA episodes are included but sorted to the end.
+    static func upNext(from shows: [Show]) -> [(show: Show, episode: Episode)] {
         let cal = Calendar.current
         let today = cal.startOfDay(for: .now)
-        guard let cutoff = cal.date(byAdding: .day, value: 7, to: today) else { return [] }
 
         return shows
             .filter { !$0.isArchived }
             .compactMap { show -> (Show, Episode)? in
+                guard show.plannedTodayEpisode == nil else { return nil }
                 guard let ep = show.nextUpcomingEpisode else { return nil }
-                guard ep.airDate > today, ep.airDate < cutoff else { return nil }
                 guard !cal.isDateInToday(ep.airDate) else { return nil }
+                guard ep.airDate > today || ep.airDate == .distantFuture else { return nil }
                 return (show, ep)
             }
-            .sorted { $0.episode.airDate < $1.episode.airDate }
+            .sorted { lhs, rhs in
+                let lTBA = lhs.episode.airDate == .distantFuture
+                let rTBA = rhs.episode.airDate == .distantFuture
+                if lTBA && rTBA { return lhs.show.title < rhs.show.title }
+                if lTBA { return false }
+                if rTBA { return true }
+                return lhs.episode.airDate < rhs.episode.airDate
+            }
     }
 
     // MARK: - All Caught Up Shows
@@ -143,6 +153,91 @@ final class WatchPlanner {
     static func caughtUpShows(from shows: [Show]) -> [Show] {
         shows
             .filter { !$0.isArchived && $0.isFullyCaughtUp }
+    }
+
+    // MARK: - Next Up: Future-release sections
+
+    /// Episodes airing today that are unwatched, from non-archived shows.
+    /// One episode per show (the first unwatched one airing today).
+    static func nextUpAiringToday(from shows: [Show]) -> [(show: Show, episode: Episode)] {
+        shows
+            .filter { !$0.isArchived }
+            .compactMap { show -> (Show, Episode)? in
+                let ep = show.episodes
+                    .filter { !$0.isWatched && Calendar.current.isDateInToday($0.airDate) }
+                    .sorted {
+                        if $0.seasonNumber != $1.seasonNumber { return $0.seasonNumber < $1.seasonNumber }
+                        return $0.episodeNumber < $1.episodeNumber
+                    }
+                    .first
+                guard let ep else { return nil }
+                return (show, ep)
+            }
+            .sorted { $0.show.title < $1.show.title }
+    }
+
+    /// Unwatched episodes airing strictly this week (tomorrow through 6 days from now),
+    /// from non-archived shows. One episode per show per day, sorted by air date then show title.
+    static func nextUpThisWeek(from shows: [Show]) -> [(show: Show, episode: Episode)] {
+        let cal = Calendar.current
+        let tomorrow = cal.startOfDay(for: cal.date(byAdding: .day, value: 1, to: .now) ?? .now)
+        guard let endOfWeek = cal.date(byAdding: .day, value: 7, to: cal.startOfDay(for: .now)) else { return [] }
+
+        return shows
+            .filter { !$0.isArchived }
+            .flatMap { show in
+                show.episodes
+                    .filter {
+                        !$0.isWatched &&
+                        $0.airDate != .distantFuture &&
+                        $0.airDate >= tomorrow &&
+                        $0.airDate < endOfWeek
+                    }
+                    .map { (show: show, episode: $0) }
+            }
+            .sorted { lhs, rhs in
+                if lhs.episode.airDate != rhs.episode.airDate { return lhs.episode.airDate < rhs.episode.airDate }
+                return lhs.show.title < rhs.show.title
+            }
+    }
+
+    /// Unwatched episodes airing more than 7 days from now (no TBA),
+    /// from non-archived shows. All matching episodes, sorted by air date then show title.
+    static func nextUpComingSoon(from shows: [Show]) -> [(show: Show, episode: Episode)] {
+        let cal = Calendar.current
+        guard let beyond = cal.date(byAdding: .day, value: 7, to: cal.startOfDay(for: .now)) else { return [] }
+
+        return shows
+            .filter { !$0.isArchived }
+            .flatMap { show in
+                show.episodes
+                    .filter {
+                        !$0.isWatched &&
+                        $0.airDate != .distantFuture &&
+                        $0.airDate >= beyond
+                    }
+                    .map { (show: show, episode: $0) }
+            }
+            .sorted { lhs, rhs in
+                if lhs.episode.airDate != rhs.episode.airDate { return lhs.episode.airDate < rhs.episode.airDate }
+                return lhs.show.title < rhs.show.title
+            }
+    }
+
+    /// Unwatched TBA episodes from non-archived shows, sorted by show title then season/episode.
+    static func nextUpDateTBA(from shows: [Show]) -> [(show: Show, episode: Episode)] {
+        shows
+            .filter { !$0.isArchived }
+            .flatMap { show in
+                show.episodes
+                    .filter { !$0.isWatched && $0.airDate == .distantFuture }
+                    .map { (show: show, episode: $0) }
+            }
+            .sorted { lhs, rhs in
+                if lhs.show.title != rhs.show.title { return lhs.show.title < rhs.show.title }
+                if lhs.episode.seasonNumber != rhs.episode.seasonNumber { return lhs.episode.seasonNumber < rhs.episode.seasonNumber }
+                return lhs.episode.episodeNumber < rhs.episode.episodeNumber
+            }
     }
 
     // MARK: - Calendar Sections
@@ -155,7 +250,8 @@ final class WatchPlanner {
     }
 
     /// Groups episodes into calendar days: 7 days back through 60 days forward.
-    /// TBA episodes excluded. Sorted by date ascending.
+    /// Excludes archived shows. TBA episodes excluded from dated sections.
+    /// Sorted by date ascending.
     static func calendarDays(from episodes: [Episode]) -> [CalendarDay] {
         let cal = Calendar.current
         let today = cal.startOfDay(for: .now)
@@ -164,8 +260,24 @@ final class WatchPlanner {
             let end = cal.date(byAdding: .day, value: 60, to: today)
         else { return [] }
 
+        // DIAG: show what the filter sees
+        print("[StreamCal Diag] calendarDays — \(episodes.count) total episodes in @Query")
+        print("[StreamCal Diag] Window: \(start) → \(end)")
+        var droppedArchived = 0, droppedTBA = 0, droppedOutsideWindow = 0, passed = 0
+        for ep in episodes {
+            if ep.show?.isArchived == true { droppedArchived += 1; continue }
+            if ep.airDate == .distantFuture { droppedTBA += 1; continue }
+            if ep.airDate < start || ep.airDate >= end { droppedOutsideWindow += 1; continue }
+            passed += 1
+            if ep.airDate >= today {
+                print("[StreamCal Diag]   PASS (future): \(ep.show?.title ?? "?") S\(ep.seasonNumber)E\(ep.episodeNumber) \(ep.airDate) watched=\(ep.isWatched)")
+            }
+        }
+        print("[StreamCal Diag] Filter result — passed=\(passed) droppedTBA=\(droppedTBA) droppedOutsideWindow=\(droppedOutsideWindow) droppedArchived=\(droppedArchived)")
+
         let windowed = episodes.filter {
-            $0.airDate != .distantFuture && $0.airDate >= start && $0.airDate < end
+            guard $0.show?.isArchived != true else { return false }
+            return $0.airDate != .distantFuture && $0.airDate >= start && $0.airDate < end
         }
 
         var dict: [Date: [Episode]] = [:]
@@ -177,6 +289,23 @@ final class WatchPlanner {
         return dict
             .map { CalendarDay(date: $0.key, episodes: $0.value.sorted { $0.show?.title ?? "" < $1.show?.title ?? "" }) }
             .sorted { $0.date < $1.date }
+    }
+
+    /// Returns unwatched TBA episodes from non-archived shows — shown separately
+    /// in the calendar so future episodes aren't silently hidden.
+    static func tbaEpisodes(from episodes: [Episode]) -> [Episode] {
+        episodes.filter {
+            $0.airDate == .distantFuture &&
+            !$0.isWatched &&
+            $0.show?.isArchived != true
+        }
+        .sorted {
+            let lhsShow = $0.show?.title ?? ""
+            let rhsShow = $1.show?.title ?? ""
+            if lhsShow != rhsShow { return lhsShow < rhsShow }
+            if $0.seasonNumber != $1.seasonNumber { return $0.seasonNumber < $1.seasonNumber }
+            return $0.episodeNumber < $1.episodeNumber
+        }
     }
 
     // MARK: - Progress summaries

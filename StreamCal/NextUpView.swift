@@ -10,15 +10,14 @@ struct NextUpView: View {
 
     private var activeShows: [Show] { shows.filter { !$0.isArchived } }
 
-    // Derived sections via WatchPlanner
-    private var tonightsPlan: [(show: Show, episode: Episode)] { WatchPlanner.tonightsPlan(from: shows) }
-    private var continueWatching: [(show: Show, episode: Episode)] { WatchPlanner.continueWatching(from: shows) }
-    private var newToday: [(show: Show, episode: Episode)] { WatchPlanner.newEpisodesToday(from: shows) }
-    private var comingSoon: [(show: Show, episode: Episode)] { WatchPlanner.comingSoon(from: shows) }
-    private var caughtUp: [Show] { WatchPlanner.caughtUpShows(from: shows) }
+    // Future-release sections only — no backlog or progress content
+    private var airingToday: [(show: Show, episode: Episode)] { WatchPlanner.nextUpAiringToday(from: shows) }
+    private var thisWeek: [(show: Show, episode: Episode)] { WatchPlanner.nextUpThisWeek(from: shows) }
+    private var comingSoon: [(show: Show, episode: Episode)] { WatchPlanner.nextUpComingSoon(from: shows) }
+    private var dateTBA: [(show: Show, episode: Episode)] { WatchPlanner.nextUpDateTBA(from: shows) }
 
-    private var hasActionableContent: Bool {
-        !tonightsPlan.isEmpty || !continueWatching.isEmpty || !newToday.isEmpty || !comingSoon.isEmpty
+    private var hasUpcomingContent: Bool {
+        !airingToday.isEmpty || !thisWeek.isEmpty || !comingSoon.isEmpty || !dateTBA.isEmpty
     }
 
     var body: some View {
@@ -26,8 +25,8 @@ struct NextUpView: View {
             Group {
                 if activeShows.isEmpty {
                     emptyLibraryState
-                } else if !hasActionableContent {
-                    allCaughtUpView
+                } else if !hasUpcomingContent {
+                    noUpcomingView
                 } else {
                     list
                 }
@@ -46,38 +45,14 @@ struct NextUpView: View {
         )
     }
 
-    // MARK: - All Caught Up
+    // MARK: - No Upcoming Episodes
 
-    private var allCaughtUpView: some View {
-        ScrollView {
-            VStack(spacing: 32) {
-                VStack(spacing: 10) {
-                    Image(systemName: "checkmark.circle.fill")
-                        .font(.system(size: 52))
-                        .foregroundStyle(.green)
-                    Text("All Caught Up")
-                        .font(.title2)
-                        .fontWeight(.semibold)
-                    Text("You're up to date on everything.\nCheck back when new episodes air.")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                        .multilineTextAlignment(.center)
-                }
-                .padding(.top, 60)
-
-                if !caughtUp.isEmpty {
-                    VStack(alignment: .leading, spacing: 12) {
-                        Text("Following")
-                            .font(.headline)
-                            .padding(.horizontal)
-                        ForEach(caughtUp) { show in
-                            CaughtUpRowView(show: show)
-                        }
-                    }
-                }
-            }
-            .padding(.bottom, 32)
-        }
+    private var noUpcomingView: some View {
+        ContentUnavailableView(
+            "No Upcoming Episodes",
+            systemImage: "calendar",
+            description: Text("Nothing scheduled yet.\nCheck back when new episodes are announced.")
+        )
         .refreshable {
             await RefreshService.shared.refreshAllShows(modelContext: modelContext)
         }
@@ -86,78 +61,58 @@ struct NextUpView: View {
     // MARK: - Main list
 
     private var list: some View {
-        List {
-            // Tonight's Plan — episodes the user explicitly scheduled for today
-            if !tonightsPlan.isEmpty {
-                Section {
-                    ForEach(tonightsPlan, id: \.episode.persistentModelID) { item in
-                        NextUpRowView(show: item.show, episode: item.episode)
+        ScrollView {
+            LazyVStack(spacing: 0) {
+                // Airing Today
+                if !airingToday.isEmpty {
+                    NextUpSectionHeader(
+                        title: "Airing Today",
+                        icon: "star.fill",
+                        color: .orange
+                    )
+                    ForEach(airingToday, id: \.episode.persistentModelID) { item in
+                        EpisodeCard(show: item.show, episode: item.episode)
                     }
-                } header: {
-                    Label("Tonight's Plan", systemImage: "moon.stars.fill")
-                        .foregroundStyle(.indigo)
-                        .font(.subheadline)
-                        .fontWeight(.semibold)
-                        .textCase(nil)
                 }
-            }
 
-            // New Episodes Today — episodes releasing today
-            if !newToday.isEmpty {
-                Section {
-                    ForEach(newToday, id: \.episode.persistentModelID) { item in
-                        NextUpRowView(show: item.show, episode: item.episode)
+                // This Week
+                if !thisWeek.isEmpty {
+                    NextUpSectionHeader(
+                        title: "This Week",
+                        icon: "calendar",
+                        color: .blue
+                    )
+                    ForEach(thisWeek, id: \.episode.persistentModelID) { item in
+                        EpisodeCard(show: item.show, episode: item.episode)
                     }
-                } header: {
-                    Label("New Today", systemImage: "star.fill")
-                        .foregroundStyle(.orange)
-                        .font(.subheadline)
-                        .fontWeight(.semibold)
-                        .textCase(nil)
                 }
-            }
 
-            // Continue Watching — next unwatched aired episode per show (backlog)
-            if !continueWatching.isEmpty {
-                Section {
-                    ForEach(continueWatching, id: \.episode.persistentModelID) { item in
-                        NextUpRowView(show: item.show, episode: item.episode)
-                    }
-                } header: {
-                    Label("Continue Watching", systemImage: "play.circle.fill")
-                        .font(.subheadline)
-                        .fontWeight(.semibold)
-                        .textCase(nil)
-                }
-            }
-
-            // Coming Soon — upcoming episodes in the next 7 days
-            if !comingSoon.isEmpty {
-                Section {
+                // Coming Soon (beyond this week)
+                if !comingSoon.isEmpty {
+                    NextUpSectionHeader(
+                        title: "Coming Soon",
+                        icon: "clock",
+                        color: .secondary
+                    )
                     ForEach(comingSoon, id: \.episode.persistentModelID) { item in
-                        NextUpRowView(show: item.show, episode: item.episode)
+                        EpisodeCard(show: item.show, episode: item.episode)
                     }
-                } header: {
-                    Text("Coming Soon")
-                        .font(.subheadline)
-                        .fontWeight(.semibold)
-                        .textCase(nil)
                 }
-            }
 
-            // Caught up shows — dimmed at the bottom
-            if !caughtUp.isEmpty {
-                Section {
-                    ForEach(caughtUp) { show in
-                        CaughtUpRowView(show: show)
+                // Date TBA
+                if !dateTBA.isEmpty {
+                    NextUpSectionHeader(
+                        title: "Date TBA",
+                        icon: "calendar.badge.clock",
+                        color: .secondary
+                    )
+                    ForEach(dateTBA, id: \.episode.persistentModelID) { item in
+                        EpisodeCard(show: item.show, episode: item.episode)
                     }
-                } header: {
-                    Text("All Caught Up")
-                        .font(.subheadline)
-                        .fontWeight(.semibold)
-                        .textCase(nil)
                 }
             }
+            .padding(.horizontal, 16)
+            .padding(.bottom, 24)
         }
         .refreshable {
             await RefreshService.shared.refreshAllShows(modelContext: modelContext)
@@ -165,13 +120,33 @@ struct NextUpView: View {
     }
 }
 
-// MARK: - Next Up Row
+// MARK: - Section Header
 
-struct NextUpRowView: View {
+struct NextUpSectionHeader: View {
+    let title: String
+    let icon: String
+    let color: Color
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Image(systemName: icon)
+                .foregroundStyle(color)
+                .imageScale(.small)
+            Text(title)
+                .font(.subheadline)
+                .fontWeight(.semibold)
+            Spacer()
+        }
+        .padding(.top, 24)
+        .padding(.bottom, 10)
+    }
+}
+
+// MARK: - Episode Card
+
+struct EpisodeCard: View {
     let show: Show
     let episode: Episode
-
-    @Environment(\.modelContext) private var modelContext
 
     private var posterURL: URL? {
         guard let s = show.posterURL else { return nil }
@@ -191,7 +166,7 @@ struct NextUpRowView: View {
     }
 
     var body: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: 14) {
             AsyncImage(url: posterURL) { phase in
                 switch phase {
                 case .success(let image):
@@ -202,19 +177,19 @@ struct NextUpRowView: View {
                         .overlay {
                             Image(systemName: "tv")
                                 .foregroundStyle(.tertiary)
-                                .imageScale(.small)
                         }
                 @unknown default:
                     Rectangle().foregroundStyle(Color(.systemGray5))
                 }
             }
-            .frame(width: 46, height: 69)
-            .clipShape(RoundedRectangle(cornerRadius: 6))
+            .frame(width: 54, height: 81)
+            .clipShape(RoundedRectangle(cornerRadius: 8))
 
             VStack(alignment: .leading, spacing: 5) {
-                HStack {
+                HStack(alignment: .top) {
                     Text(show.title)
                         .font(.headline)
+                        .lineLimit(1)
                     Spacer()
                     PlatformBadge(platform: show.platform)
                 }
@@ -222,48 +197,46 @@ struct NextUpRowView: View {
                 Text(episode.displayTitle)
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
-                    .lineLimit(1)
+                    .lineLimit(2)
 
-                statusLabel
+                Spacer(minLength: 0)
+
+                statusBadge
             }
+            .padding(.vertical, 14)
         }
-        .padding(.vertical, 4)
-        .contextMenu { episodeContextMenu }
-        .swipeActions(edge: .leading) {
-            Button {
-                episode.isWatched = true
-                episode.plannedDate = nil
-                Task { await NotificationService.shared.scheduleNotifications(for: show) }
-            } label: {
-                Label("Watched", systemImage: "checkmark")
-            }
-            .tint(.green)
-        }
+        .padding(.horizontal, 14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color(.secondarySystemGroupedBackground))
+        .clipShape(RoundedRectangle(cornerRadius: 14))
+        .shadow(color: .black.opacity(0.06), radius: 4, x: 0, y: 2)
+        .padding(.bottom, 10)
+        .contextMenu { EpisodeContextMenuItems(episode: episode, show: show) }
     }
 
     @ViewBuilder
-    private var statusLabel: some View {
-        HStack(spacing: 6) {
-            if isPlannedToday {
-                Label("Planned tonight", systemImage: "moon.stars.fill")
-                    .font(.caption)
-                    .fontWeight(.semibold)
-                    .foregroundStyle(.indigo)
-            } else if isToday {
-                Label("New today", systemImage: "star.fill")
-                    .font(.caption)
-                    .fontWeight(.semibold)
-                    .foregroundStyle(.orange)
-            } else if isBacklog {
-                Label("Available now", systemImage: "play.circle.fill")
-                    .font(.caption)
-                    .fontWeight(.semibold)
-                    .foregroundStyle(.blue)
-            } else if isTBA {
-                Label("Date TBA", systemImage: "calendar.badge.clock")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            } else {
+    private var statusBadge: some View {
+        if isPlannedToday {
+            Label("Planned tonight", systemImage: "moon.stars.fill")
+                .font(.caption)
+                .fontWeight(.semibold)
+                .foregroundStyle(.indigo)
+        } else if isToday {
+            Label("New today", systemImage: "star.fill")
+                .font(.caption)
+                .fontWeight(.semibold)
+                .foregroundStyle(.orange)
+        } else if isBacklog {
+            Label("Available now", systemImage: "play.circle.fill")
+                .font(.caption)
+                .fontWeight(.semibold)
+                .foregroundStyle(.blue)
+        } else if isTBA {
+            Label("Date TBA", systemImage: "calendar.badge.clock")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        } else {
+            HStack(spacing: 5) {
                 Image(systemName: "calendar")
                     .imageScale(.small)
                     .foregroundStyle(.tertiary)
@@ -282,75 +255,6 @@ struct NextUpRowView: View {
                 }
             }
         }
-    }
-
-    @ViewBuilder
-    private var episodeContextMenu: some View {
-        EpisodeContextMenuItems(episode: episode, show: show)
-    }
-}
-
-// MARK: - Caught Up Row
-
-struct CaughtUpRowView: View {
-    let show: Show
-
-    private var posterURL: URL? {
-        guard let s = show.posterURL else { return nil }
-        return URL(string: s)
-    }
-
-    var body: some View {
-        HStack(spacing: 12) {
-            AsyncImage(url: posterURL) { phase in
-                switch phase {
-                case .success(let image):
-                    image.resizable().aspectRatio(contentMode: .fill)
-                case .failure, .empty:
-                    Rectangle()
-                        .foregroundStyle(Color(.systemGray5))
-                        .overlay {
-                            Image(systemName: "tv")
-                                .foregroundStyle(.tertiary)
-                                .imageScale(.small)
-                        }
-                @unknown default:
-                    Rectangle().foregroundStyle(Color(.systemGray5))
-                }
-            }
-            .frame(width: 36, height: 54)
-            .clipShape(RoundedRectangle(cornerRadius: 5))
-            .opacity(0.6)
-
-            VStack(alignment: .leading, spacing: 3) {
-                Text(show.title)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                Text(caughtUpStatusText)
-                    .font(.caption)
-                    .foregroundStyle(.tertiary)
-            }
-
-            Spacer()
-
-            Image(systemName: "checkmark.circle.fill")
-                .foregroundStyle(.green.opacity(0.7))
-                .imageScale(.small)
-        }
-        .padding(.vertical, 2)
-    }
-
-    private var caughtUpStatusText: String {
-        if let status = show.showStatus, status == "Ended" || status == "Canceled" {
-            return status
-        }
-        if let next = show.nextUpcomingEpisode {
-            if next.airDate == .distantFuture { return "Next episode TBA" }
-            let formatter = DateFormatter()
-            formatter.dateFormat = "EEE MMM d"
-            return "Next: \(formatter.string(from: next.airDate))"
-        }
-        return "Up to date"
     }
 }
 
@@ -409,34 +313,52 @@ struct EpisodeContextMenuItems: View {
 #Preview {
     NextUpView()
         .modelContainer(nextUpPreviewContainer)
+        .background(Color(.systemGroupedBackground))
 }
 
 private var nextUpPreviewContainer: ModelContainer = {
     let config = ModelConfiguration(isStoredInMemoryOnly: true)
     let container = try! ModelContainer(for: Show.self, Episode.self, configurations: config)
     let ctx = container.mainContext
+    let cal = Calendar.current
 
+    // Airing Today
     let show1 = Show(title: "Severance", platform: "Apple TV+", showStatus: "Returning Series")
     ctx.insert(show1)
     let ep1 = Episode(seasonNumber: 2, episodeNumber: 4, title: "Woe's Hollow",
-                      airDate: Calendar.current.date(byAdding: .day, value: 0, to: .now)!)
+                      airDate: cal.startOfDay(for: .now))
     ep1.show = show1
     ctx.insert(ep1)
 
-    let show2 = Show(title: "The Bear", platform: "Hulu", showStatus: "Returning Series")
+    // This Week
+    let show2 = Show(title: "The Last of Us", platform: "Max", showStatus: "Returning Series")
     ctx.insert(show2)
-    let ep2 = Episode(seasonNumber: 3, episodeNumber: 1, title: "Tomorrow",
-                      airDate: Calendar.current.date(byAdding: .day, value: -5, to: .now)!)
+    let ep2 = Episode(seasonNumber: 2, episodeNumber: 3, title: "Through the Valley",
+                      airDate: cal.date(byAdding: .day, value: 3, to: .now)!)
     ep2.show = show2
     ctx.insert(ep2)
 
-    let show3 = Show(title: "The Last of Us", platform: "Max", showStatus: "Returning Series")
+    let show3 = Show(title: "White Lotus", platform: "Max", showStatus: "Returning Series")
     ctx.insert(show3)
-    let ep3 = Episode(seasonNumber: 2, episodeNumber: 3, title: "Episode 3",
-                      airDate: Calendar.current.date(byAdding: .day, value: 4, to: .now)!)
+    let ep3 = Episode(seasonNumber: 3, episodeNumber: 2, title: "Episode 2",
+                      airDate: cal.date(byAdding: .day, value: 5, to: .now)!)
     ep3.show = show3
-    ep3.plannedDate = Calendar.current.startOfDay(for: .now)
     ctx.insert(ep3)
+
+    // Coming Soon
+    let show4 = Show(title: "Andor", platform: "Disney+", showStatus: "Returning Series")
+    ctx.insert(show4)
+    let ep4 = Episode(seasonNumber: 2, episodeNumber: 1, title: "Aftermath",
+                      airDate: cal.date(byAdding: .day, value: 18, to: .now)!)
+    ep4.show = show4
+    ctx.insert(ep4)
+
+    // TBA
+    let show5 = Show(title: "Succession", platform: "Max", showStatus: "Ended")
+    ctx.insert(show5)
+    let ep5 = Episode(seasonNumber: 5, episodeNumber: 1, title: "TBA", airDate: .distantFuture)
+    ep5.show = show5
+    ctx.insert(ep5)
 
     return container
 }()

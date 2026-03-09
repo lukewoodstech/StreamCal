@@ -9,6 +9,7 @@ struct LibraryView: View {
     private var shows: [Show]
 
     @State private var showingAddShow = false
+    @State private var addedShowTitle: String? = nil
 
     var activeShows: [Show] { shows.filter { !$0.isArchived } }
     var archivedShows: [Show] { shows.filter { $0.isArchived } }
@@ -92,11 +93,58 @@ struct LibraryView: View {
                 }
             }
             .sheet(isPresented: $showingAddShow) {
-                AddShowSheet()
+                AddShowSheet(onAdded: { title in
+                    addedShowTitle = title
+                })
             }
+            .overlay(alignment: .bottom) {
+                if let title = addedShowTitle {
+                    AddedToastView(showTitle: title)
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                        .onAppear {
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) {
+                                withAnimation(.easeOut(duration: 0.3)) {
+                                    addedShowTitle = nil
+                                }
+                            }
+                        }
+                        .padding(.bottom, 16)
+                }
+            }
+            .animation(.spring(duration: 0.4), value: addedShowTitle)
         }
     }
 }
+
+// MARK: - Added Toast
+
+struct AddedToastView: View {
+    let showTitle: String
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "checkmark.circle.fill")
+                .foregroundStyle(.green)
+            VStack(alignment: .leading, spacing: 1) {
+                Text("Added to Library")
+                    .font(.subheadline)
+                    .fontWeight(.semibold)
+                Text(showTitle)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+            Spacer()
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14))
+        .shadow(color: .black.opacity(0.12), radius: 8, x: 0, y: 4)
+        .padding(.horizontal, 20)
+    }
+}
+
+// MARK: - Show Row
 
 struct ShowRowView: View {
     let show: Show
