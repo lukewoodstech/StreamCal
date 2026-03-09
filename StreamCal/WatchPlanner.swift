@@ -40,14 +40,14 @@ struct ShowProgress {
             return "Next: \(formatter.string(from: upcoming.airDate))"
         }
 
-        // No upcoming episodes — show ended or fully up to date
-        if isFullyCaughtUp { return "All caught up" }
+        // No upcoming episodes
         if show.episodes.isEmpty { return "No episodes yet" }
+        if isFullyCaughtUp { return "All caught up" }
 
-        // Show has ended and user hasn't finished it
-        if hasBacklog {
-            return show.showStatus == "Ended" ? "Series ended" : "Up to date"
-        }
+        // No announced next season yet
+        let status = show.showStatus ?? ""
+        if status == "Ended" { return "Series ended" }
+        if status == "Returning Series" || status == "In Production" { return "Between seasons" }
 
         return "Up to date"
     }
