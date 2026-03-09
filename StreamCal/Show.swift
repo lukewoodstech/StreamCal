@@ -55,20 +55,18 @@ final class Show {
         self.showStatus = showStatus
     }
 
-    /// The next episode the user should watch: the earliest unwatched episode,
-    /// regardless of whether it has aired yet. Prioritises already-aired episodes
-    /// (watch backlog) over future/TBA ones.
+    /// The next episode the user should watch: the earliest unwatched aired episode,
+    /// or if fully up to date, the next future/TBA episode.
     var nextToWatch: Episode? {
         let unwatched = episodes.filter { !$0.isWatched }
-        return unwatched.sorted {
-            // Sort by season → episode number so the user always gets the logical next ep
+        let sorted = unwatched.sorted {
             if $0.seasonNumber != $1.seasonNumber { return $0.seasonNumber < $1.seasonNumber }
             return $0.episodeNumber < $1.episodeNumber
-        }.first
+        }
+        return sorted.first
     }
 
     /// The next episode that has not yet aired (strictly in the future or TBA).
-    /// Used for the calendar and countdown displays.
     var nextUpcomingEpisode: Episode? {
         let today = Calendar.current.startOfDay(for: .now)
         return episodes
@@ -85,17 +83,51 @@ final class Show {
             .first
     }
 
-    /// True when the show has unwatched episodes that have already aired.
-    var hasWatchBacklog: Bool {
+    /// Unwatched episodes that have already aired, in watch order.
+    var backlogEpisodes: [Episode] {
         let today = Calendar.current.startOfDay(for: .now)
-        return episodes.contains { !$0.isWatched && $0.airDate <= today && $0.airDate != .distantFuture }
+        return episodes
+            .filter { !$0.isWatched && $0.airDate <= today && $0.airDate != .distantFuture }
+            .sorted {
+                if $0.seasonNumber != $1.seasonNumber { return $0.seasonNumber < $1.seasonNumber }
+                return $0.episodeNumber < $1.episodeNumber
+            }
+    }
+
+    var backlogCount: Int { backlogEpisodes.count }
+
+    var hasWatchBacklog: Bool { backlogCount > 0 }
+
+    /// The most recently watched episode, for "up to date through" display.
+    var lastWatchedEpisode: Episode? {
+        episodes
+            .filter { $0.isWatched }
+            .sorted {
+                if $0.seasonNumber != $1.seasonNumber { return $0.seasonNumber > $1.seasonNumber }
+                return $0.episodeNumber > $1.episodeNumber
+            }
+            .first
+    }
+
+    /// True if all episodes have been watched and there's nothing upcoming.
+    var isFullyCaughtUp: Bool {
+        !episodes.isEmpty && episodes.allSatisfy { $0.isWatched } && nextUpcomingEpisode == nil
+    }
+
+    /// Any episode planned for today across this show.
+    var plannedTodayEpisode: Episode? {
+        episodes.first { $0.isPlannedToday && !$0.isWatched }
     }
 
     var nextEpisodeDateText: String? {
         guard let ep = nextToWatch else { return nil }
+        if ep.isPlannedToday { return "Planned tonight" }
         if ep.airDate == .distantFuture { return "TBA" }
         let today = Calendar.current.startOfDay(for: .now)
-        if ep.airDate <= today { return "Available now" }
+        if ep.airDate <= today {
+            let count = backlogCount
+            return count > 1 ? "Backlog: \(count) eps" : "Available now"
+        }
         let formatter = DateFormatter()
         formatter.dateStyle = .medium
         formatter.timeStyle = .none
@@ -119,6 +151,9 @@ final class Episode {
     var isWatched: Bool
     var createdAt: Date
 
+    /// User-set planned watch date. nil = not planned.
+    var plannedDate: Date?
+
     var show: Show?
 
     init(
@@ -127,7 +162,8 @@ final class Episode {
         title: String = "",
         airDate: Date = .now,
         isWatched: Bool = false,
-        createdAt: Date = .now
+        createdAt: Date = .now,
+        plannedDate: Date? = nil
     ) {
         self.seasonNumber = seasonNumber
         self.episodeNumber = episodeNumber
@@ -135,10 +171,17 @@ final class Episode {
         self.airDate = airDate
         self.isWatched = isWatched
         self.createdAt = createdAt
+        self.plannedDate = plannedDate
     }
 
     var displayTitle: String {
         let code = "S\(String(format: "%02d", seasonNumber))E\(String(format: "%02d", episodeNumber))"
         return title.isEmpty ? code : "\(code) — \(title)"
+    }
+
+    /// True if this episode is planned for today.
+    var isPlannedToday: Bool {
+        guard let d = plannedDate else { return false }
+        return Calendar.current.isDateInToday(d)
     }
 }

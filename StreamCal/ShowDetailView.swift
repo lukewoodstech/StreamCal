@@ -40,7 +40,10 @@ struct ShowDetailView: View {
                     }
                     if !airedUnwatched.isEmpty {
                         Button {
-                            for ep in airedUnwatched { ep.isWatched = true }
+                            for ep in airedUnwatched {
+                                ep.isWatched = true
+                                ep.plannedDate = nil
+                            }
                             Task {
                                 await NotificationService.shared.scheduleNotifications(for: show)
                             }
@@ -161,6 +164,7 @@ struct ShowDetailView: View {
                         .swipeActions(edge: .leading) {
                             Button {
                                 episode.isWatched.toggle()
+                                if episode.isWatched { episode.plannedDate = nil }
                                 let capturedShow = show
                                 Task {
                                     await NotificationService.shared.scheduleNotifications(for: capturedShow)
@@ -172,6 +176,9 @@ struct ShowDetailView: View {
                                 )
                             }
                             .tint(episode.isWatched ? .gray : .green)
+                        }
+                        .contextMenu {
+                            EpisodeContextMenuItems(episode: episode, show: show)
                         }
                 }
             }
@@ -199,27 +206,44 @@ struct ShowDetailView: View {
         refreshError = nil
 
         do {
+            let details = try await TMDBService.shared.fetchShowDetails(tmdbID: tmdbID)
             let freshEpisodes = try await TMDBService.shared.fetchAllEpisodes(tmdbID: tmdbID)
 
-            // Build a set of existing (season, episode) pairs so we only add new ones
-            let existing = Set(show.episodes.map { "\($0.seasonNumber)-\($0.episodeNumber)" })
-
-            for ep in freshEpisodes {
-                let key = "\(ep.seasonNumber)-\(ep.episodeNumber)"
-                guard !existing.contains(key) else { continue }
-                let airDate = ep.parsedAirDate ?? Date.distantFuture
-                let episode = Episode(
-                    seasonNumber: ep.seasonNumber,
-                    episodeNumber: ep.episodeNumber,
-                    title: ep.name ?? "",
-                    airDate: airDate,
-                    isWatched: false
-                )
-                episode.show = show
-                modelContext.insert(episode)
+            // Sync show-level metadata
+            if let status = details.status, !status.isEmpty {
+                show.showStatus = status
             }
 
-            show.updatedAt = .now
+            // Upsert: update existing episodes and insert new ones
+            var existingMap: [String: Episode] = [:]
+            for ep in show.episodes {
+                existingMap["\(ep.seasonNumber)-\(ep.episodeNumber)"] = ep
+            }
+
+            var changed = false
+            for tmdbEp in freshEpisodes {
+                let key = "\(tmdbEp.seasonNumber)-\(tmdbEp.episodeNumber)"
+                let freshDate = tmdbEp.parsedAirDate ?? Date.distantFuture
+                let freshTitle = tmdbEp.name ?? ""
+
+                if let existing = existingMap[key] {
+                    if existing.airDate != freshDate { existing.airDate = freshDate; changed = true }
+                    if !freshTitle.isEmpty && existing.title != freshTitle { existing.title = freshTitle; changed = true }
+                } else {
+                    let episode = Episode(
+                        seasonNumber: tmdbEp.seasonNumber,
+                        episodeNumber: tmdbEp.episodeNumber,
+                        title: freshTitle,
+                        airDate: freshDate,
+                        isWatched: false
+                    )
+                    episode.show = show
+                    modelContext.insert(episode)
+                    changed = true
+                }
+            }
+
+            if changed { show.updatedAt = .now }
             await NotificationService.shared.scheduleNotifications(for: show)
         } catch {
             refreshError = error.localizedDescription
@@ -240,14 +264,28 @@ struct EpisodeRowView: View {
                 Text(episode.displayTitle)
                     .font(.subheadline)
                     .foregroundStyle(episode.isWatched ? .secondary : .primary)
-                Text(episode.airDate, style: .date)
+                Text(episode.airDate == .distantFuture ? "TBA" : episode.airDate.formatted(date: .abbreviated, time: .omitted))
                     .font(.caption)
                     .foregroundStyle(.tertiary)
             }
             Spacer()
-            if episode.isWatched {
-                Image(systemName: "checkmark.circle.fill")
-                    .foregroundStyle(.green)
+
+            HStack(spacing: 6) {
+                if episode.isWatched {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundStyle(.green)
+                } else if episode.isPlannedToday {
+                    Label("Tonight", systemImage: "moon.stars.fill")
+                        .font(.caption2)
+                        .fontWeight(.semibold)
+                        .foregroundStyle(.indigo)
+                } else if let planned = episode.plannedDate {
+                    let f = DateFormatter()
+                    let _ = { f.dateFormat = "EEE" }()
+                    Text(f.string(from: planned))
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
             }
         }
     }

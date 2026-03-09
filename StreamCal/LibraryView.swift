@@ -101,6 +101,8 @@ struct LibraryView: View {
 struct ShowRowView: View {
     let show: Show
 
+    private var progress: ShowProgress { WatchPlanner.progress(for: show) }
+
     private var posterURL: URL? {
         guard let s = show.posterURL else { return nil }
         return URL(string: s)
@@ -127,28 +129,56 @@ struct ShowRowView: View {
                         .foregroundStyle(Color(.systemGray5))
                 }
             }
-            .frame(width: 40, height: 60)
-            .clipShape(RoundedRectangle(cornerRadius: 5))
+            .frame(width: 44, height: 66)
+            .clipShape(RoundedRectangle(cornerRadius: 6))
 
-            VStack(alignment: .leading, spacing: 4) {
-                HStack {
+            VStack(alignment: .leading, spacing: 5) {
+                HStack(alignment: .firstTextBaseline) {
                     Text(show.title)
                         .font(.headline)
+                        .lineLimit(1)
                     Spacer()
                     PlatformBadge(platform: show.platform)
                 }
-                if let dateText = show.nextEpisodeDateText {
-                    Label(dateText, systemImage: "calendar")
+
+                // Progress line
+                HStack(spacing: 5) {
+                    Image(systemName: progressIcon)
+                        .imageScale(.small)
+                        .foregroundStyle(progressColor)
+                    Text(progress.progressLabel)
                         .font(.caption)
-                        .foregroundStyle(.secondary)
-                } else {
-                    Text("No upcoming episodes")
-                        .font(.caption)
+                        .foregroundStyle(progressColor)
+                        .lineLimit(1)
+                }
+
+                // Detail line — "Up to date through S2E5" etc
+                if let detail = progress.progressDetail {
+                    Text(detail)
+                        .font(.caption2)
                         .foregroundStyle(.tertiary)
+                        .lineLimit(1)
                 }
             }
         }
-        .padding(.vertical, 2)
+        .padding(.vertical, 3)
+    }
+
+    private var progressIcon: String {
+        if progress.plannedToday != nil { return "moon.stars.fill" }
+        if progress.hasBacklog { return "play.circle.fill" }
+        if progress.isFullyCaughtUp { return "checkmark.circle.fill" }
+        if progress.nextUpcoming != nil { return "calendar" }
+        return "tv"
+    }
+
+    private var progressColor: Color {
+        if progress.plannedToday != nil { return .indigo }
+        if progress.hasBacklog { return .blue }
+        if progress.isFullyCaughtUp { return .green }
+        if let upcoming = progress.nextUpcoming,
+           Calendar.current.isDateInToday(upcoming.airDate) { return .orange }
+        return .secondary
     }
 }
 

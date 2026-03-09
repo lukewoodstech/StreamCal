@@ -26,22 +26,31 @@ actor NotificationService {
 
     // MARK: - Schedule
 
-    /// Schedule a morning notification for each future unwatched episode.
+    /// Schedule notifications for each future unwatched episode, plus a same-day
+    /// reminder for any episode the user has planned for tonight.
     /// Existing notifications for this show are replaced.
     func scheduleNotifications(for show: Show) async {
         let status = await authorizationStatus()
         guard status == .authorized else { return }
 
-        // Clear existing notifications for this show first
         await cancelNotifications(for: show)
 
         let today = Calendar.current.startOfDay(for: .now)
+
+        // Air-date notifications for future unwatched episodes
         let futureEpisodes = show.episodes.filter {
-            !$0.isWatched && $0.airDate >= today && $0.airDate < Date.distantFuture
+            !$0.isWatched && $0.airDate > today && $0.airDate < Date.distantFuture
+        }
+        for episode in futureEpisodes {
+            await scheduleAirDateNotification(for: episode, showTitle: show.title)
         }
 
-        for episode in futureEpisodes {
-            await scheduleNotification(for: episode, showTitle: show.title)
+        // Evening reminder for episodes planned for tonight (8 PM)
+        let plannedTonight = show.episodes.filter {
+            !$0.isWatched && $0.isPlannedToday
+        }
+        for episode in plannedTonight {
+            await schedulePlanNotification(for: episode, showTitle: show.title)
         }
     }
 
@@ -55,21 +64,22 @@ actor NotificationService {
     // MARK: - Cancel
 
     func cancelNotifications(for show: Show) async {
-        let ids = show.episodes.map { notificationID(for: $0) }
+        let ids = show.episodes.flatMap { ep in
+            [notificationID(for: ep, suffix: "air"), notificationID(for: ep, suffix: "plan")]
+        }
         center.removePendingNotificationRequests(withIdentifiers: ids)
     }
 
     // MARK: - Private
 
-    private func scheduleNotification(for episode: Episode, showTitle: String) async {
-        let id = notificationID(for: episode)
+    private func scheduleAirDateNotification(for episode: Episode, showTitle: String) async {
+        let id = notificationID(for: episode, suffix: "air")
 
         let content = UNMutableNotificationContent()
         content.title = showTitle
         content.body = episodeBody(episode)
         content.sound = .default
 
-        // Fire at 9am on the episode's air date
         var dateComponents = Calendar.current.dateComponents([.year, .month, .day], from: episode.airDate)
         dateComponents.hour = 9
         dateComponents.minute = 0
@@ -80,10 +90,27 @@ actor NotificationService {
         try? await center.add(request)
     }
 
-    private func notificationID(for episode: Episode) -> String {
-        // Stable ID from show title + season + episode number
+    private func schedulePlanNotification(for episode: Episode, showTitle: String) async {
+        let id = notificationID(for: episode, suffix: "plan")
+
+        let content = UNMutableNotificationContent()
+        content.title = "Tonight: \(showTitle)"
+        content.body = "You planned to watch \(episode.displayTitle) tonight."
+        content.sound = .default
+
+        var dateComponents = Calendar.current.dateComponents([.year, .month, .day], from: .now)
+        dateComponents.hour = 20
+        dateComponents.minute = 0
+
+        let trigger = UNCalendarNotificationTrigger(dateMatching: dateComponents, repeats: false)
+        let request = UNNotificationRequest(identifier: id, content: content, trigger: trigger)
+
+        try? await center.add(request)
+    }
+
+    private func notificationID(for episode: Episode, suffix: String = "air") -> String {
         let showTitle = episode.show?.title ?? "unknown"
-        return "streamcal-\(showTitle)-s\(episode.seasonNumber)e\(episode.episodeNumber)"
+        return "streamcal-\(showTitle)-s\(episode.seasonNumber)e\(episode.episodeNumber)-\(suffix)"
             .lowercased()
             .replacingOccurrences(of: " ", with: "-")
     }
