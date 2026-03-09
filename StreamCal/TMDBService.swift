@@ -71,7 +71,10 @@ struct TMDBEpisode: Decodable, Sendable {
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyy-MM-dd"
         formatter.timeZone = .current
-        return formatter.date(from: raw)
+        guard let date = formatter.date(from: raw) else { return nil }
+        // Normalise to midnight local time so date comparisons are always
+        // against the same granularity as Calendar.current.startOfDay(for:)
+        return Calendar.current.startOfDay(for: date)
     }
 
     enum CodingKeys: String, CodingKey {

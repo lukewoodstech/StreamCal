@@ -25,35 +25,34 @@ struct ShowProgress {
     var isFullyCaughtUp: Bool { show.isFullyCaughtUp }
     var lastWatched: Episode? { show.lastWatchedEpisode }
 
-    /// Human-readable progress line for Library rows.
+    /// Human-readable status line for Library rows.
+    /// Leads with upcoming/airing info — backlog is secondary context only.
     var progressLabel: String {
-        if let planned = plannedToday {
-            return "Planned tonight · \(planned.displayTitle)"
-        }
-        if hasBacklog {
-            let count = backlogCount
-            if let next = nextToWatch {
-                return count == 1
-                    ? "Watch next: \(next.displayTitle)"
-                    : "Backlog: \(count) eps · \(next.displayTitle)"
-            }
-            return "Backlog: \(count) eps"
-        }
+        let cal = Calendar.current
+
+        // Next upcoming episode is the primary signal
         if let upcoming = nextUpcoming {
             if upcoming.airDate == .distantFuture { return "Next episode: TBA" }
-            let cal = Calendar.current
             if cal.isDateInToday(upcoming.airDate) { return "New episode today!" }
             if cal.isDateInTomorrow(upcoming.airDate) { return "New episode tomorrow" }
             let formatter = DateFormatter()
             formatter.dateFormat = "EEE MMM d"
             return "Next: \(formatter.string(from: upcoming.airDate))"
         }
+
+        // No upcoming episodes — show ended or fully up to date
         if isFullyCaughtUp { return "All caught up" }
         if show.episodes.isEmpty { return "No episodes yet" }
+
+        // Show has ended and user hasn't finished it
+        if hasBacklog {
+            return show.showStatus == "Ended" ? "Series ended" : "Up to date"
+        }
+
         return "Up to date"
     }
 
-    /// Detailed progress line such as "Up to date through S2E5"
+    /// Detailed line shown below the main label.
     var progressDetail: String? {
         if let last = lastWatched, backlogCount == 0, nextUpcoming != nil {
             return "Up to date through \(last.displayTitle)"

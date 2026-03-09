@@ -227,7 +227,8 @@ struct ShowDetailView: View {
                 let freshTitle = tmdbEp.name ?? ""
 
                 if let existing = existingMap[key] {
-                    if existing.airDate != freshDate { existing.airDate = freshDate; changed = true }
+                    let normalised = Calendar.current.startOfDay(for: existing.airDate)
+                    if normalised != freshDate { existing.airDate = freshDate; changed = true }
                     if !freshTitle.isEmpty && existing.title != freshTitle { existing.title = freshTitle; changed = true }
                 } else {
                     let episode = Episode(

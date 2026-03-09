@@ -214,18 +214,19 @@ struct ShowRowView: View {
 
     private var progressIcon: String {
         if progress.plannedToday != nil { return "moon.stars.fill" }
-        if progress.hasBacklog { return "play.circle.fill" }
+        if let upcoming = progress.nextUpcoming {
+            return Calendar.current.isDateInToday(upcoming.airDate) ? "star.fill" : "calendar"
+        }
         if progress.isFullyCaughtUp { return "checkmark.circle.fill" }
-        if progress.nextUpcoming != nil { return "calendar" }
         return "tv"
     }
 
     private var progressColor: Color {
         if progress.plannedToday != nil { return .indigo }
-        if progress.hasBacklog { return .blue }
+        if let upcoming = progress.nextUpcoming {
+            return Calendar.current.isDateInToday(upcoming.airDate) ? .orange : .secondary
+        }
         if progress.isFullyCaughtUp { return .green }
-        if let upcoming = progress.nextUpcoming,
-           Calendar.current.isDateInToday(upcoming.airDate) { return .orange }
         return .secondary
     }
 }

@@ -21,6 +21,7 @@ final class RefreshService {
             await refreshShow(show, modelContext: modelContext)
         }
 
+        try? modelContext.save()
         await NotificationService.shared.scheduleNotifications(for: trackedShows)
     }
 
@@ -46,22 +47,16 @@ final class RefreshService {
 
             var changed = false
 
-            // DIAG: log what TMDB returned for future/TBA episodes
-            let today = Date()
-            let futureTMDB = freshEpisodes.filter { $0.parsedAirDate != nil && $0.parsedAirDate! > today }
-            let tbaTMDB = freshEpisodes.filter { $0.parsedAirDate == nil }
-            print("[StreamCal Diag] \(show.title) — TMDB returned \(freshEpisodes.count) total eps, \(futureTMDB.count) future, \(tbaTMDB.count) nil airDate (→ distantFuture)")
-            for ep in futureTMDB.prefix(5) {
-                print("[StreamCal Diag]   Future ep: S\(ep.seasonNumber)E\(ep.episodeNumber) rawAirDate='\(ep.airDate ?? "nil")' parsed=\(ep.parsedAirDate.map { "\($0)" } ?? "nil")")
-            }
-
             for tmdbEp in freshEpisodes {
                 let key = "\(tmdbEp.seasonNumber)-\(tmdbEp.episodeNumber)"
                 let freshDate = tmdbEp.parsedAirDate ?? Date.distantFuture
 
                 if let existing = existingMap[key] {
-                    // Update air date if TMDB has a different (more precise) value
-                    if existing.airDate != freshDate {
+                    // Normalise the stored date to midnight local before comparing —
+                    // legacy entries may have been stored as midnight UTC, which differs
+                    // from the current midnight-local representation for the same calendar day.
+                    let normalised = Calendar.current.startOfDay(for: existing.airDate)
+                    if normalised != freshDate {
                         existing.airDate = freshDate
                         changed = true
                     }
@@ -88,14 +83,6 @@ final class RefreshService {
 
             if changed {
                 show.updatedAt = .now
-            }
-
-            // DIAG: log what ended up stored for this show after the refresh
-            let storedFuture = show.episodes.filter { $0.airDate > today && $0.airDate != .distantFuture }
-            let storedTBA = show.episodes.filter { $0.airDate == .distantFuture }
-            print("[StreamCal Diag] \(show.title) — after refresh: \(show.episodes.count) stored eps, \(storedFuture.count) with real future dates, \(storedTBA.count) TBA")
-            for ep in storedFuture.prefix(5) {
-                print("[StreamCal Diag]   Stored future: S\(ep.seasonNumber)E\(ep.episodeNumber) airDate=\(ep.airDate) isWatched=\(ep.isWatched)")
             }
         } catch {
             print("[StreamCal Diag] \(show.title) — refresh FAILED: \(error)")

@@ -66,11 +66,11 @@ final class Show: Identifiable {
         return sorted.first
     }
 
-    /// The next episode that has not yet aired (strictly in the future or TBA).
+    /// The next episode airing today or in the future (not yet watched), or TBA.
     var nextUpcomingEpisode: Episode? {
         let today = Calendar.current.startOfDay(for: .now)
         return episodes
-            .filter { !$0.isWatched && ($0.airDate > today || $0.airDate == .distantFuture) }
+            .filter { !$0.isWatched && ($0.airDate >= today || $0.airDate == .distantFuture) }
             .sorted {
                 if $0.airDate == .distantFuture && $1.airDate == .distantFuture {
                     if $0.seasonNumber != $1.seasonNumber { return $0.seasonNumber < $1.seasonNumber }
@@ -83,11 +83,11 @@ final class Show: Identifiable {
             .first
     }
 
-    /// Unwatched episodes that have already aired, in watch order.
+    /// Unwatched episodes that aired strictly before today, in watch order.
     var backlogEpisodes: [Episode] {
         let today = Calendar.current.startOfDay(for: .now)
         return episodes
-            .filter { !$0.isWatched && $0.airDate <= today && $0.airDate != .distantFuture }
+            .filter { !$0.isWatched && $0.airDate < today && $0.airDate != .distantFuture }
             .sorted {
                 if $0.seasonNumber != $1.seasonNumber { return $0.seasonNumber < $1.seasonNumber }
                 return $0.episodeNumber < $1.episodeNumber
