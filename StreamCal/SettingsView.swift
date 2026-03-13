@@ -23,7 +23,8 @@ struct SettingsView: View {
 
     var body: some View {
         NavigationStack {
-            Form {
+            ZStack {
+                Form {
                 Section("About") {
                     LabeledContent("Version", value: "\(appVersion) (\(buildNumber))")
                     LabeledContent("Shows", value: "\(shows.count)")
@@ -63,21 +64,51 @@ struct SettingsView: View {
                 }
 
                 Section("Data") {
-                    // Attach confirmationDialog directly to the button so the
-                    // action sheet anchors to the right place on screen.
                     Button("Delete All Data", role: .destructive) {
                         showingDeleteAllConfirm = true
                     }
-                    .confirmationDialog(
-                        "Delete All Data?",
-                        isPresented: $showingDeleteAllConfirm,
-                        titleVisibility: .visible
-                    ) {
-                        Button("Delete All Data", role: .destructive) { deleteAllData() }
-                        Button("Cancel", role: .cancel) {}
-                    } message: {
+                }
+                }
+                .disabled(showingDeleteAllConfirm)
+
+                if showingDeleteAllConfirm {
+                    // Dimmed background to focus the confirmation modal
+                    Color.black.opacity(0.35)
+                        .ignoresSafeArea()
+                        .transition(.opacity)
+
+                    VStack(spacing: 16) {
+                        Text("Delete All Data?")
+                            .font(.title3.weight(.semibold))
+                            .multilineTextAlignment(.center)
+
                         Text("This will permanently delete all \(shows.count) shows and \(episodes.count) episodes. This cannot be undone.")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                            .multilineTextAlignment(.center)
+
+                        VStack(spacing: 8) {
+                            Button(role: .destructive) {
+                                showingDeleteAllConfirm = false
+                                deleteAllData()
+                            } label: {
+                                Text("Delete All Data")
+                                    .frame(maxWidth: .infinity)
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .tint(.red)
+
+                            Button("Cancel") {
+                                showingDeleteAllConfirm = false
+                            }
+                            .frame(maxWidth: .infinity)
+                        }
                     }
+                    .padding(20)
+                    .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+                    .shadow(color: .black.opacity(0.25), radius: 20, y: 10)
+                    .padding(.horizontal, 32)
+                    .transition(.scale.combined(with: .opacity))
                 }
             }
             .navigationTitle("Settings")
@@ -102,6 +133,7 @@ struct SettingsView: View {
                 }
             }
             .animation(.spring(duration: 0.35), value: showingDeletedBanner)
+            .animation(.spring(duration: 0.3), value: showingDeleteAllConfirm)
         }
     }
 
