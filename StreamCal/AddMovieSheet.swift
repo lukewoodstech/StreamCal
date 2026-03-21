@@ -9,7 +9,9 @@ struct AddMovieSheet: View {
 
     @State private var searchText = ""
     @State private var results: [TMDBMovie] = []
+    @State private var suggestions: [TMDBMovie] = []
     @State private var isSearching = false
+    @State private var isLoadingSuggestions = false
     @State private var isImporting = false
     @State private var importError: String? = nil
     @State private var searchTask: Task<Void, Never>? = nil
@@ -42,6 +44,27 @@ struct AddMovieSheet: View {
                     }
                 } else if results.isEmpty && !searchText.isEmpty && !isSearching {
                     ContentUnavailableView.search(text: searchText)
+                } else if searchText.isEmpty {
+                    // Pre-search suggestions: upcoming movies from TMDB
+                    if isLoadingSuggestions {
+                        HStack { Spacer(); ProgressView(); Spacer() }
+                            .listRowBackground(Color.clear)
+                            .padding(.vertical, 20)
+                    } else if !suggestions.isEmpty {
+                        Section("Upcoming in Theaters") {
+                            ForEach(suggestions) { movie in
+                                let alreadyAdded = libraryTMDBIDs.contains(movie.id)
+                                Button {
+                                    guard !alreadyAdded else { return }
+                                    Task { await importMovie(movie) }
+                                } label: {
+                                    MovieSearchResultRow(movie: movie, alreadyAdded: alreadyAdded)
+                                }
+                                .buttonStyle(.plain)
+                                .disabled(alreadyAdded)
+                            }
+                        }
+                    }
                 } else {
                     ForEach(results) { movie in
                         let alreadyAdded = libraryTMDBIDs.contains(movie.id)
@@ -73,8 +96,19 @@ struct AddMovieSheet: View {
                     Button("Cancel") { dismiss() }
                 }
             }
-            .onAppear { loadLibraryIDs() }
+            .onAppear {
+                loadLibraryIDs()
+                Task { await loadSuggestions() }
+            }
         }
+    }
+
+    // MARK: - Suggestions
+
+    private func loadSuggestions() async {
+        isLoadingSuggestions = true
+        suggestions = (try? await TMDBService.shared.fetchUpcomingMovies()) ?? []
+        isLoadingSuggestions = false
     }
 
     // MARK: - Search

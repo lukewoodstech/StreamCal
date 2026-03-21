@@ -69,12 +69,18 @@ final class RefreshService {
     }
 
     func refreshTeam(_ team: SportTeam, modelContext: ModelContext) async {
+        if team.dataSource == "espn" {
+            await refreshESPNTeam(team, modelContext: modelContext)
+        } else {
+            await refreshTSDBTeam(team, modelContext: modelContext)
+        }
+    }
+
+    private func refreshTSDBTeam(_ team: SportTeam, modelContext: ModelContext) async {
         guard let events = try? await TheSportsDBService.shared.fetchNextEvents(teamID: team.sportsDBID) else { return }
 
         var existingMap: [String: SportGame] = [:]
-        for game in team.games {
-            existingMap[game.sportsDBEventID] = game
-        }
+        for game in team.games { existingMap[game.sportsDBEventID] = game }
 
         for event in events {
             if let existing = existingMap[event.idEvent] {
@@ -93,6 +99,57 @@ final class RefreshService {
                     season: event.strSeason,
                     result: event.result,
                     isCompleted: event.isCompleted
+                )
+                game.team = team
+                modelContext.insert(game)
+            }
+        }
+    }
+
+    private func refreshESPNTeam(_ team: SportTeam, modelContext: ModelContext) async {
+        // leagueID stores "sport/league" path, e.g. "football/nfl"
+        guard let leaguePath = team.leagueID, leaguePath.contains("/") else { return }
+        let parts = leaguePath.split(separator: "/")
+        guard parts.count == 2 else { return }
+        let sport = String(parts[0])
+        let league = String(parts[1])
+
+        guard let events = try? await ESPNService.shared.fetchSchedule(
+            espnTeamID: team.sportsDBID,
+            sport: sport,
+            leaguePath: league
+        ) else { return }
+
+        var existingMap: [String: SportGame] = [:]
+        for game in team.games { existingMap[game.sportsDBEventID] = game }
+
+        for event in events {
+            let comp = event.competitions.first
+            let isCompleted = comp?.status?.type?.completed ?? false
+            let home = comp?.competitors.first(where: { $0.homeAway == "home" })?.team.displayName ?? ""
+            let away = comp?.competitors.first(where: { $0.homeAway == "away" })?.team.displayName ?? ""
+
+            var result: String? = nil
+            if isCompleted,
+               let homeScore = comp?.competitors.first(where: { $0.homeAway == "home" })?.score?.value,
+               let awayScore = comp?.competitors.first(where: { $0.homeAway == "away" })?.score?.value {
+                result = "\(Int(awayScore))–\(Int(homeScore))"
+            }
+
+            if let existing = existingMap[event.id] {
+                existing.result = result
+                existing.isCompleted = isCompleted
+                if let date = event.parsedDate { existing.gameDate = date }
+            } else {
+                let game = SportGame(
+                    sportsDBEventID: event.id,
+                    title: event.name,
+                    homeTeam: home,
+                    awayTeam: away,
+                    gameDate: event.parsedDate ?? .distantFuture,
+                    venue: comp?.venue?.fullName,
+                    result: result,
+                    isCompleted: isCompleted
                 )
                 game.team = team
                 modelContext.insert(game)

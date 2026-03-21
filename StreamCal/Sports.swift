@@ -11,7 +11,8 @@ final class SportTeam {
     var league: String              // "NFL", "NBA", "Premier League"
     var leagueID: String?           // for season-level fetches
     var country: String?
-    var badgeURL: String?           // team logo from TheSportsDB
+    var badgeURL: String?           // team logo URL
+    var dataSource: String = "tsdb" // "tsdb" or "espn"
     var notificationsEnabled: Bool = true
     var createdAt: Date
 
@@ -26,6 +27,7 @@ final class SportTeam {
         leagueID: String? = nil,
         country: String? = nil,
         badgeURL: String? = nil,
+        dataSource: String = "tsdb",
         createdAt: Date = .now
     ) {
         self.name = name
@@ -35,6 +37,7 @@ final class SportTeam {
         self.leagueID = leagueID
         self.country = country
         self.badgeURL = badgeURL
+        self.dataSource = dataSource
         self.createdAt = createdAt
     }
 
