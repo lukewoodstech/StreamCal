@@ -13,6 +13,9 @@ struct SettingsView: View {
     @State private var showingDeletedBanner = false
     @State private var notificationStatus: UNAuthorizationStatus = .notDetermined
 
+    @AppStorage("airReminderHour") private var airReminderHour: Int = 9
+    @AppStorage("planReminderHour") private var planReminderHour: Int = 20
+
     private var appVersion: String {
         Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "—"
     }
@@ -36,6 +39,21 @@ struct SettingsView: View {
                     case .authorized:
                         Label("Enabled", systemImage: "bell.fill")
                             .foregroundStyle(.green)
+
+                        Picker("New episode reminder", selection: $airReminderHour) {
+                            ForEach(0..<24, id: \.self) { hour in
+                                Text(formattedHour(hour)).tag(hour)
+                            }
+                        }
+                        .onChange(of: airReminderHour) { _, _ in rescheduleNotifications() }
+
+                        Picker("Tonight's plan reminder", selection: $planReminderHour) {
+                            ForEach(0..<24, id: \.self) { hour in
+                                Text(formattedHour(hour)).tag(hour)
+                            }
+                        }
+                        .onChange(of: planReminderHour) { _, _ in rescheduleNotifications() }
+
                     case .denied:
                         VStack(alignment: .leading, spacing: 6) {
                             Label("Disabled", systemImage: "bell.slash")
@@ -137,6 +155,22 @@ struct SettingsView: View {
         }
     }
 
+    // MARK: - Helpers
+
+    private func formattedHour(_ hour: Int) -> String {
+        var components = DateComponents()
+        components.hour = hour
+        components.minute = 0
+        let date = Calendar.current.date(from: components) ?? Date()
+        return date.formatted(.dateTime.hour().minute())
+    }
+
+    private func rescheduleNotifications() {
+        Task {
+            await NotificationService.shared.scheduleNotifications(for: shows)
+        }
+    }
+
     private func deleteAllData() {
         do {
             UNUserNotificationCenter.current().removeAllPendingNotificationRequests()
@@ -154,7 +188,7 @@ struct SettingsView: View {
                 showingDeletedBanner = false
             }
         } catch {
-            print("Delete all data failed: \(error)")
+            // Settings delete errors are non-fatal; banner won't show but data may be partially cleared
         }
     }
 

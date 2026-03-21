@@ -35,9 +35,7 @@ struct ShowProgress {
             if upcoming.airDate == .distantFuture { return "Next episode: TBA" }
             if cal.isDateInToday(upcoming.airDate) { return "New episode today!" }
             if cal.isDateInTomorrow(upcoming.airDate) { return "New episode tomorrow" }
-            let formatter = DateFormatter()
-            formatter.dateFormat = "EEE MMM d"
-            return "Next: \(formatter.string(from: upcoming.airDate))"
+            return "Next: \(upcoming.airDate.formatted(.dateTime.weekday(.abbreviated).month(.abbreviated).day()))"
         }
 
         // No upcoming episodes
@@ -248,35 +246,17 @@ final class WatchPlanner {
         var isPast: Bool { date < Calendar.current.startOfDay(for: .now) }
     }
 
-    /// Groups episodes into calendar days: 7 days back through 60 days forward.
-    /// Excludes archived shows. TBA episodes excluded from dated sections.
+    /// Groups episodes into calendar days: today through 60 days forward.
+    /// Excludes archived shows, watched episodes, and TBA episodes.
     /// Sorted by date ascending.
     static func calendarDays(from episodes: [Episode]) -> [CalendarDay] {
         let cal = Calendar.current
         let today = cal.startOfDay(for: .now)
-        guard
-            let start = cal.date(byAdding: .day, value: -7, to: today),
-            let end = cal.date(byAdding: .day, value: 60, to: today)
-        else { return [] }
-
-        // DIAG: show what the filter sees
-        print("[StreamCal Diag] calendarDays — \(episodes.count) total episodes in @Query")
-        print("[StreamCal Diag] Window: \(start) → \(end)")
-        var droppedArchived = 0, droppedTBA = 0, droppedOutsideWindow = 0, passed = 0
-        for ep in episodes {
-            if ep.show?.isArchived == true { droppedArchived += 1; continue }
-            if ep.airDate == .distantFuture { droppedTBA += 1; continue }
-            if ep.airDate < start || ep.airDate >= end { droppedOutsideWindow += 1; continue }
-            passed += 1
-            if ep.airDate >= today {
-                print("[StreamCal Diag]   PASS (future): \(ep.show?.title ?? "?") S\(ep.seasonNumber)E\(ep.episodeNumber) \(ep.airDate) watched=\(ep.isWatched)")
-            }
-        }
-        print("[StreamCal Diag] Filter result — passed=\(passed) droppedTBA=\(droppedTBA) droppedOutsideWindow=\(droppedOutsideWindow) droppedArchived=\(droppedArchived)")
+        guard let end = cal.date(byAdding: .day, value: 60, to: today) else { return [] }
 
         let windowed = episodes.filter {
             guard $0.show?.isArchived != true else { return false }
-            return $0.airDate != .distantFuture && $0.airDate >= start && $0.airDate < end
+            return !$0.isWatched && $0.airDate != .distantFuture && $0.airDate >= today && $0.airDate < end
         }
 
         var dict: [Date: [Episode]] = [:]

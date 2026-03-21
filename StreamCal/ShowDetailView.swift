@@ -77,7 +77,7 @@ struct ShowDetailView: View {
             Section {
                 HStack {
                     Spacer()
-                    AsyncImage(url: url) { phase in
+                    CachedAsyncImage(url: url) { phase in
                         switch phase {
                         case .success(let image):
                             image
@@ -201,55 +201,13 @@ struct ShowDetailView: View {
     // MARK: - Refresh
 
     private func refreshEpisodes() async {
-        guard let tmdbID = show.tmdbID else { return }
         isRefreshing = true
         refreshError = nil
-
         do {
-            let details = try await TMDBService.shared.fetchShowDetails(tmdbID: tmdbID)
-            let freshEpisodes = try await TMDBService.shared.fetchAllEpisodes(tmdbID: tmdbID)
-
-            // Sync show-level metadata
-            if let status = details.status, !status.isEmpty {
-                show.showStatus = status
-            }
-
-            // Upsert: update existing episodes and insert new ones
-            var existingMap: [String: Episode] = [:]
-            for ep in show.episodes {
-                existingMap["\(ep.seasonNumber)-\(ep.episodeNumber)"] = ep
-            }
-
-            var changed = false
-            for tmdbEp in freshEpisodes {
-                let key = "\(tmdbEp.seasonNumber)-\(tmdbEp.episodeNumber)"
-                let freshDate = tmdbEp.parsedAirDate ?? Date.distantFuture
-                let freshTitle = tmdbEp.name ?? ""
-
-                if let existing = existingMap[key] {
-                    let normalised = Calendar.current.startOfDay(for: existing.airDate)
-                    if normalised != freshDate { existing.airDate = freshDate; changed = true }
-                    if !freshTitle.isEmpty && existing.title != freshTitle { existing.title = freshTitle; changed = true }
-                } else {
-                    let episode = Episode(
-                        seasonNumber: tmdbEp.seasonNumber,
-                        episodeNumber: tmdbEp.episodeNumber,
-                        title: freshTitle,
-                        airDate: freshDate,
-                        isWatched: false
-                    )
-                    episode.show = show
-                    modelContext.insert(episode)
-                    changed = true
-                }
-            }
-
-            if changed { show.updatedAt = .now }
-            await NotificationService.shared.scheduleNotifications(for: show)
+            try await RefreshService.shared.refreshSingleShow(show, modelContext: modelContext)
         } catch {
             refreshError = error.localizedDescription
         }
-
         isRefreshing = false
     }
 }
@@ -281,9 +239,7 @@ struct EpisodeRowView: View {
                         .fontWeight(.semibold)
                         .foregroundStyle(.indigo)
                 } else if let planned = episode.plannedDate {
-                    let f = DateFormatter()
-                    let _ = { f.dateFormat = "EEE" }()
-                    Text(f.string(from: planned))
+                    Text(planned, format: .dateTime.weekday(.abbreviated))
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                 }

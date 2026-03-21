@@ -70,6 +70,18 @@ actor NotificationService {
         center.removePendingNotificationRequests(withIdentifiers: ids)
     }
 
+    // MARK: - User Preferences
+
+    private var airReminderHour: Int {
+        let stored = UserDefaults.standard.object(forKey: "airReminderHour")
+        return (stored as? Int) ?? 9
+    }
+
+    private var planReminderHour: Int {
+        let stored = UserDefaults.standard.object(forKey: "planReminderHour")
+        return (stored as? Int) ?? 20
+    }
+
     // MARK: - Private
 
     private func scheduleAirDateNotification(for episode: Episode, showTitle: String) async {
@@ -81,7 +93,7 @@ actor NotificationService {
         content.sound = .default
 
         var dateComponents = Calendar.current.dateComponents([.year, .month, .day], from: episode.airDate)
-        dateComponents.hour = 9
+        dateComponents.hour = airReminderHour
         dateComponents.minute = 0
 
         let trigger = UNCalendarNotificationTrigger(dateMatching: dateComponents, repeats: false)
@@ -99,7 +111,7 @@ actor NotificationService {
         content.sound = .default
 
         var dateComponents = Calendar.current.dateComponents([.year, .month, .day], from: .now)
-        dateComponents.hour = 20
+        dateComponents.hour = planReminderHour
         dateComponents.minute = 0
 
         let trigger = UNCalendarNotificationTrigger(dateMatching: dateComponents, repeats: false)

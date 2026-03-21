@@ -18,74 +18,80 @@ final class RefreshService {
         guard !trackedShows.isEmpty else { return }
 
         for show in trackedShows {
-            await refreshShow(show, modelContext: modelContext)
+            try? await syncShow(show, modelContext: modelContext)
         }
 
         try? modelContext.save()
         await NotificationService.shared.scheduleNotifications(for: trackedShows)
     }
 
+    /// Single-show refresh used by ShowDetailView for on-demand refresh.
+    /// Throws on network/decode failure so the caller can surface the error.
+    func refreshSingleShow(_ show: Show, modelContext: ModelContext) async throws {
+        try await syncShow(show, modelContext: modelContext)
+        try? modelContext.save()
+        await NotificationService.shared.scheduleNotifications(for: show)
+    }
+
     // MARK: - Private
 
-    private func refreshShow(_ show: Show, modelContext: ModelContext) async {
+    /// Core upsert logic — fetches fresh data from TMDB and syncs into SwiftData.
+    /// Throws on any network or decode failure.
+    private func syncShow(_ show: Show, modelContext: ModelContext) async throws {
         guard let tmdbID = show.tmdbID else { return }
 
-        do {
-            let details = try await TMDBService.shared.fetchShowDetails(tmdbID: tmdbID)
-            let freshEpisodes = try await TMDBService.shared.fetchAllEpisodes(tmdbID: tmdbID)
+        let details = try await TMDBService.shared.fetchShowDetails(tmdbID: tmdbID)
+        let freshEpisodes = try await TMDBService.shared.fetchAllEpisodes(tmdbID: tmdbID)
 
-            // Sync show-level metadata that can change over time
-            if let status = details.status, !status.isEmpty {
-                show.showStatus = status
-            }
+        // Sync show-level metadata that can change over time
+        if let status = details.status, !status.isEmpty {
+            show.showStatus = status
+        }
 
-            // Build a lookup of existing episodes keyed by "season-episode"
-            var existingMap: [String: Episode] = [:]
-            for ep in show.episodes {
-                existingMap["\(ep.seasonNumber)-\(ep.episodeNumber)"] = ep
-            }
+        // Build a lookup of existing episodes keyed by "season-episode"
+        var existingMap: [String: Episode] = [:]
+        for ep in show.episodes {
+            existingMap["\(ep.seasonNumber)-\(ep.episodeNumber)"] = ep
+        }
 
-            var changed = false
+        var changed = false
 
-            for tmdbEp in freshEpisodes {
-                let key = "\(tmdbEp.seasonNumber)-\(tmdbEp.episodeNumber)"
-                let freshDate = tmdbEp.parsedAirDate ?? Date.distantFuture
+        for tmdbEp in freshEpisodes {
+            let key = "\(tmdbEp.seasonNumber)-\(tmdbEp.episodeNumber)"
+            let freshDate = tmdbEp.parsedAirDate ?? Date.distantFuture
 
-                if let existing = existingMap[key] {
-                    // Normalise the stored date to midnight local before comparing —
-                    // legacy entries may have been stored as midnight UTC, which differs
-                    // from the current midnight-local representation for the same calendar day.
-                    let normalised = Calendar.current.startOfDay(for: existing.airDate)
-                    if normalised != freshDate {
-                        existing.airDate = freshDate
-                        changed = true
-                    }
-                    // Update title if it was empty or has changed
-                    let freshTitle = tmdbEp.name ?? ""
-                    if existing.title != freshTitle && !freshTitle.isEmpty {
-                        existing.title = freshTitle
-                        changed = true
-                    }
-                } else {
-                    // New episode not yet in the local store
-                    let episode = Episode(
-                        seasonNumber: tmdbEp.seasonNumber,
-                        episodeNumber: tmdbEp.episodeNumber,
-                        title: tmdbEp.name ?? "",
-                        airDate: freshDate,
-                        isWatched: false
-                    )
-                    episode.show = show
-                    modelContext.insert(episode)
+            if let existing = existingMap[key] {
+                // Normalise the stored date to midnight local before comparing —
+                // legacy entries may have been stored as midnight UTC, which differs
+                // from the current midnight-local representation for the same calendar day.
+                let normalised = Calendar.current.startOfDay(for: existing.airDate)
+                if normalised != freshDate {
+                    existing.airDate = freshDate
                     changed = true
                 }
+                // Update title if it was empty or has changed
+                let freshTitle = tmdbEp.name ?? ""
+                if existing.title != freshTitle && !freshTitle.isEmpty {
+                    existing.title = freshTitle
+                    changed = true
+                }
+            } else {
+                // New episode not yet in the local store
+                let episode = Episode(
+                    seasonNumber: tmdbEp.seasonNumber,
+                    episodeNumber: tmdbEp.episodeNumber,
+                    title: tmdbEp.name ?? "",
+                    airDate: freshDate,
+                    isWatched: false
+                )
+                episode.show = show
+                modelContext.insert(episode)
+                changed = true
             }
+        }
 
-            if changed {
-                show.updatedAt = .now
-            }
-        } catch {
-            print("[StreamCal Diag] \(show.title) — refresh FAILED: \(error)")
+        if changed {
+            show.updatedAt = .now
         }
     }
 }

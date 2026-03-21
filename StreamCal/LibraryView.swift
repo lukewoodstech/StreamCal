@@ -158,7 +158,7 @@ struct ShowRowView: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            AsyncImage(url: posterURL) { phase in
+            CachedAsyncImage(url: posterURL) { phase in
                 switch phase {
                 case .success(let image):
                     image

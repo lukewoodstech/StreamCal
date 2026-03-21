@@ -4,6 +4,13 @@ import SwiftData
 @main
 struct StreamCalApp: App {
 
+    init() {
+        UserDefaults.standard.register(defaults: [
+            "airReminderHour": 9,   // 9:00 AM — new episode air-date reminder
+            "planReminderHour": 20  // 8:00 PM — tonight's plan reminder
+        ])
+    }
+
     var body: some Scene {
         WindowGroup {
             ContentView()

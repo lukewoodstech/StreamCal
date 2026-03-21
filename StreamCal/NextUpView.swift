@@ -61,62 +61,94 @@ struct NextUpView: View {
     // MARK: - Main list
 
     private var list: some View {
-        ScrollView {
-            LazyVStack(spacing: 0) {
-                // Airing Today
-                if !airingToday.isEmpty {
-                    NextUpSectionHeader(
-                        title: "Airing Today",
-                        icon: "star.fill",
-                        color: .orange
-                    )
+        List {
+            if !airingToday.isEmpty {
+                Section {
                     ForEach(airingToday, id: \.episode.persistentModelID) { item in
                         EpisodeCard(show: item.show, episode: item.episode)
+                            .swipeActions(edge: .leading) {
+                                watchedButton(item.episode, item.show)
+                            }
+                            .swipeActions(edge: .trailing) {
+                                planTonightButton(item.episode)
+                            }
                     }
-                }
-
-                // This Week
-                if !thisWeek.isEmpty {
-                    NextUpSectionHeader(
-                        title: "This Week",
-                        icon: "calendar",
-                        color: .blue
-                    )
-                    ForEach(thisWeek, id: \.episode.persistentModelID) { item in
-                        EpisodeCard(show: item.show, episode: item.episode)
-                    }
-                }
-
-                // Coming Soon (beyond this week)
-                if !comingSoon.isEmpty {
-                    NextUpSectionHeader(
-                        title: "Coming Soon",
-                        icon: "clock",
-                        color: .secondary
-                    )
-                    ForEach(comingSoon, id: \.episode.persistentModelID) { item in
-                        EpisodeCard(show: item.show, episode: item.episode)
-                    }
-                }
-
-                // Date TBA
-                if !dateTBA.isEmpty {
-                    NextUpSectionHeader(
-                        title: "Date TBA",
-                        icon: "calendar.badge.clock",
-                        color: .secondary
-                    )
-                    ForEach(dateTBA, id: \.episode.persistentModelID) { item in
-                        EpisodeCard(show: item.show, episode: item.episode)
-                    }
+                } header: {
+                    NextUpSectionHeader(title: "Airing Today", icon: "star.fill", color: .orange)
                 }
             }
-            .padding(.horizontal, 16)
-            .padding(.bottom, 24)
+
+            if !thisWeek.isEmpty {
+                Section {
+                    ForEach(thisWeek, id: \.episode.persistentModelID) { item in
+                        EpisodeCard(show: item.show, episode: item.episode)
+                            .swipeActions(edge: .leading) {
+                                watchedButton(item.episode, item.show)
+                            }
+                            .swipeActions(edge: .trailing) {
+                                planTonightButton(item.episode)
+                            }
+                    }
+                } header: {
+                    NextUpSectionHeader(title: "This Week", icon: "calendar", color: .blue)
+                }
+            }
+
+            if !comingSoon.isEmpty {
+                Section {
+                    ForEach(comingSoon, id: \.episode.persistentModelID) { item in
+                        EpisodeCard(show: item.show, episode: item.episode)
+                            .swipeActions(edge: .leading) {
+                                watchedButton(item.episode, item.show)
+                            }
+                            .swipeActions(edge: .trailing) {
+                                planTonightButton(item.episode)
+                            }
+                    }
+                } header: {
+                    NextUpSectionHeader(title: "Coming Soon", icon: "clock", color: .secondary)
+                }
+            }
+
+            if !dateTBA.isEmpty {
+                Section {
+                    ForEach(dateTBA, id: \.episode.persistentModelID) { item in
+                        EpisodeCard(show: item.show, episode: item.episode)
+                            .swipeActions(edge: .leading) {
+                                watchedButton(item.episode, item.show)
+                            }
+                    }
+                } header: {
+                    NextUpSectionHeader(title: "Date TBA", icon: "calendar.badge.clock", color: .secondary)
+                }
+            }
         }
+        .listStyle(.plain)
         .refreshable {
             await RefreshService.shared.refreshAllShows(modelContext: modelContext)
         }
+    }
+
+    @ViewBuilder
+    private func watchedButton(_ episode: Episode, _ show: Show) -> some View {
+        Button {
+            episode.isWatched = true
+            episode.plannedDate = nil
+            Task { await NotificationService.shared.scheduleNotifications(for: show) }
+        } label: {
+            Label("Watched", systemImage: "checkmark")
+        }
+        .tint(.green)
+    }
+
+    @ViewBuilder
+    private func planTonightButton(_ episode: Episode) -> some View {
+        Button {
+            WatchPlanner.planTonight(episode)
+        } label: {
+            Label("Tonight", systemImage: "moon.stars.fill")
+        }
+        .tint(.indigo)
     }
 }
 
@@ -146,7 +178,7 @@ struct NextUpSectionHeader: View {
 
 struct EpisodeCard: View {
     let show: Show
-    let episode: Episode
+    @Bindable var episode: Episode
 
     private var posterURL: URL? {
         guard let s = show.posterURL else { return nil }
@@ -154,20 +186,19 @@ struct EpisodeCard: View {
     }
 
     private var cal: Calendar { Calendar.current }
-    private var today: Date { cal.startOfDay(for: .now) }
 
     private var isTBA: Bool { episode.airDate == .distantFuture }
     private var isToday: Bool { cal.isDateInToday(episode.airDate) }
-    private var isBacklog: Bool { !isTBA && episode.airDate <= today }
     private var isPlannedToday: Bool { episode.isPlannedToday }
 
     private var daysUntil: Int {
-        cal.dateComponents([.day], from: today, to: cal.startOfDay(for: episode.airDate)).day ?? 0
+        let today = cal.startOfDay(for: .now)
+        return cal.dateComponents([.day], from: today, to: cal.startOfDay(for: episode.airDate)).day ?? 0
     }
 
     var body: some View {
         HStack(spacing: 14) {
-            AsyncImage(url: posterURL) { phase in
+            CachedAsyncImage(url: posterURL) { phase in
                 switch phase {
                 case .success(let image):
                     image.resizable().aspectRatio(contentMode: .fill)
@@ -207,10 +238,6 @@ struct EpisodeCard: View {
         }
         .padding(.horizontal, 14)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color(.secondarySystemGroupedBackground))
-        .clipShape(RoundedRectangle(cornerRadius: 14))
-        .shadow(color: .black.opacity(0.06), radius: 4, x: 0, y: 2)
-        .padding(.bottom, 10)
         .contextMenu { EpisodeContextMenuItems(episode: episode, show: show) }
     }
 
@@ -226,11 +253,6 @@ struct EpisodeCard: View {
                 .font(.caption)
                 .fontWeight(.semibold)
                 .foregroundStyle(.orange)
-        } else if isBacklog {
-            Label("Available now", systemImage: "play.circle.fill")
-                .font(.caption)
-                .fontWeight(.semibold)
-                .foregroundStyle(.blue)
         } else if isTBA {
             Label("Date TBA", systemImage: "calendar.badge.clock")
                 .font(.caption)

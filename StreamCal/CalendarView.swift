@@ -8,118 +8,316 @@ struct CalendarView: View {
     @Query(sort: \Episode.airDate)
     private var allEpisodes: [Episode]
 
-    private var calendarDays: [WatchPlanner.CalendarDay] {
-        WatchPlanner.calendarDays(from: allEpisodes)
+    @State private var displayedMonth: Date = Calendar.current.startOfMonth(for: .now)
+    @State private var selectedDate: Date = Calendar.current.startOfDay(for: .now)
+
+    private var cal: Calendar { Calendar.current }
+    private var today: Date { cal.startOfDay(for: .now) }
+
+    // O(1) lookup: midnight-local date → episodes that day
+    private var episodesByDate: [Date: [Episode]] {
+        var dict: [Date: [Episode]] = [:]
+        for day in WatchPlanner.calendarDays(from: allEpisodes) {
+            dict[day.date] = day.episodes
+        }
+        return dict
     }
 
     private var tbaEpisodes: [Episode] {
         WatchPlanner.tbaEpisodes(from: allEpisodes)
     }
 
-    private var hasAnything: Bool {
-        !calendarDays.isEmpty || !tbaEpisodes.isEmpty
+    private var selectedEpisodes: [Episode] {
+        episodesByDate[selectedDate] ?? []
     }
 
     var body: some View {
         NavigationStack {
-            Group {
-                if hasAnything {
-                    calendarList
-                } else {
-                    // Wrap empty state in a ScrollView so pull-to-refresh still works
-                    ScrollView {
-                        ContentUnavailableView(
-                            "Nothing Scheduled",
-                            systemImage: "calendar.badge.clock",
-                            description: Text("Add shows to your library to see upcoming episodes.")
-                        )
-                        .padding(.top, 80)
+            VStack(spacing: 0) {
+                MonthGridView(
+                    displayedMonth: $displayedMonth,
+                    selectedDate: $selectedDate,
+                    episodesByDate: episodesByDate,
+                    today: today,
+                    onMonthChanged: { newMonth in
+                        selectedDate = nearestDate(in: newMonth, from: episodesByDate) ?? cal.startOfMonth(for: newMonth)
                     }
-                    .refreshable {
-                        await RefreshService.shared.refreshAllShows(modelContext: modelContext)
-                    }
+                )
+                .padding(.horizontal, 16)
+                .padding(.bottom, 8)
+
+                Divider()
+
+                dayPane
+            }
+            .navigationTitle("Calendar")
+            .refreshable {
+                await RefreshService.shared.refreshAllShows(modelContext: modelContext)
+            }
+            .onAppear {
+                selectedDate = nearestDate(from: today, in: episodesByDate) ?? today
+            }
+            .onChange(of: episodesByDate.keys.count) {
+                // Re-evaluate after a data refresh if still on today with no episodes
+                if selectedEpisodes.isEmpty {
+                    selectedDate = nearestDate(from: today, in: episodesByDate) ?? today
                 }
             }
-            .navigationTitle("Release Radar")
         }
     }
 
-    private var calendarList: some View {
-        List {
-            ForEach(calendarDays, id: \.date) { day in
-                Section {
-                    ForEach(day.episodes) { episode in
-                        CalendarEpisodeRow(episode: episode)
+    /// Returns today if it has episodes, otherwise the next calendar day that does.
+    private func nearestDate(from start: Date, in dict: [Date: [Episode]]) -> Date? {
+        let sorted = dict.keys.filter { $0 >= start }.sorted()
+        return sorted.first
+    }
+
+    /// Returns the first day in `month` that has episodes, or nil if none.
+    private func nearestDate(in month: Date, from dict: [Date: [Episode]]) -> Date? {
+        let monthStart = cal.startOfMonth(for: month)
+        guard let monthEnd = cal.date(byAdding: .month, value: 1, to: monthStart) else { return nil }
+        let sorted = dict.keys.filter { $0 >= monthStart && $0 < monthEnd }.sorted()
+        return sorted.first
+    }
+
+    // MARK: - Day Pane
+
+    private var dayPane: some View {
+        Group {
+            if selectedEpisodes.isEmpty && tbaEpisodes.isEmpty {
+                nothingScheduledView
+            } else {
+                List {
+                    Section {
+                        if selectedEpisodes.isEmpty {
+                            Text("Nothing scheduled")
+                                .foregroundStyle(.tertiary)
+                                .font(.subheadline)
+                                .frame(maxWidth: .infinity, alignment: .center)
+                                .padding(.vertical, 8)
+                                .listRowBackground(Color.clear)
+                        } else {
+                            ForEach(selectedEpisodes) { episode in
+                                CalendarEpisodeRow(episode: episode)
+                            }
+                        }
+                    } header: {
+                        dayPaneHeader
                     }
-                } header: {
-                    CalendarDayHeader(day: day)
+
+                    if !tbaEpisodes.isEmpty {
+                        Section("Date TBA") {
+                            ForEach(tbaEpisodes) { episode in
+                                CalendarEpisodeRow(episode: episode)
+                            }
+                        }
+                    }
+                }
+                .listStyle(.insetGrouped)
+            }
+        }
+    }
+
+    private var dayPaneHeader: some View {
+        HStack {
+            Text(headerLabel)
+                .font(.subheadline)
+                .fontWeight(.semibold)
+                .foregroundStyle(cal.isDateInToday(selectedDate) ? Color.accentColor : .primary)
+            if !selectedEpisodes.isEmpty {
+                Text("· \(selectedEpisodes.count) ep\(selectedEpisodes.count == 1 ? "" : "s")")
+                    .font(.subheadline)
+                    .foregroundStyle(.tertiary)
+            }
+        }
+    }
+
+    private var headerLabel: String {
+        if cal.isDateInToday(selectedDate) { return "Today" }
+        if cal.isDateInTomorrow(selectedDate) { return "Tomorrow" }
+        return selectedDate.formatted(.dateTime.weekday(.wide).month(.abbreviated).day())
+    }
+
+    private var nothingScheduledView: some View {
+        ContentUnavailableView(
+            "Nothing Scheduled",
+            systemImage: "calendar.badge.clock",
+            description: Text("Add shows to your library to see upcoming episodes.")
+        )
+    }
+}
+
+// MARK: - Month Grid
+
+struct MonthGridView: View {
+    @Binding var displayedMonth: Date
+    @Binding var selectedDate: Date
+    let episodesByDate: [Date: [Episode]]
+    let today: Date
+    var onMonthChanged: ((Date) -> Void)? = nil
+
+    private let cal = Calendar.current
+    private let columns = Array(repeating: GridItem(.flexible(), spacing: 0), count: 7)
+    private let weekdaySymbols = ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"]
+
+    private var canGoBack: Bool {
+        displayedMonth > cal.startOfMonth(for: today)
+    }
+
+    private var monthTitle: String {
+        displayedMonth.formatted(.dateTime.month(.wide).year())
+    }
+
+    // 42 cells (6 rows × 7 cols): nil = empty padding cell, Date = real day
+    private var cells: [Date?] {
+        guard let range = cal.range(of: .day, in: .month, for: displayedMonth),
+              let firstDay = cal.date(from: cal.dateComponents([.year, .month], from: displayedMonth))
+        else { return [] }
+
+        // weekday index Mon=0 ... Sun=6
+        let firstWeekday = (cal.component(.weekday, from: firstDay) + 5) % 7
+        var result: [Date?] = Array(repeating: nil, count: firstWeekday)
+        for day in range {
+            result.append(cal.date(byAdding: .day, value: day - 1, to: firstDay))
+        }
+        // pad to complete grid
+        while result.count % 7 != 0 { result.append(nil) }
+        return result
+    }
+
+    var body: some View {
+        VStack(spacing: 8) {
+            // Month navigation
+            HStack {
+                Button {
+                    let newMonth = cal.date(byAdding: .month, value: -1, to: displayedMonth) ?? displayedMonth
+                    withAnimation(.easeInOut(duration: 0.2)) { displayedMonth = newMonth }
+                    onMonthChanged?(newMonth)
+                } label: {
+                    Image(systemName: "chevron.left")
+                        .imageScale(.small)
+                        .foregroundStyle(canGoBack ? .primary : .tertiary)
+                }
+                .disabled(!canGoBack)
+
+                Spacer()
+                Text(monthTitle)
+                    .font(.subheadline)
+                    .fontWeight(.semibold)
+                Spacer()
+
+                Button {
+                    let newMonth = cal.date(byAdding: .month, value: 1, to: displayedMonth) ?? displayedMonth
+                    withAnimation(.easeInOut(duration: 0.2)) { displayedMonth = newMonth }
+                    onMonthChanged?(newMonth)
+                } label: {
+                    Image(systemName: "chevron.right")
+                        .imageScale(.small)
+                }
+            }
+            .padding(.vertical, 4)
+
+            // Weekday header row
+            LazyVGrid(columns: columns, spacing: 0) {
+                ForEach(weekdaySymbols, id: \.self) { symbol in
+                    Text(symbol)
+                        .font(.caption2)
+                        .fontWeight(.medium)
+                        .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity)
+                        .padding(.bottom, 4)
                 }
             }
 
-            // TBA episodes — date not yet confirmed by the network
-            if !tbaEpisodes.isEmpty {
-                Section {
-                    ForEach(tbaEpisodes) { episode in
-                        CalendarEpisodeRow(episode: episode)
-                    }
-                } header: {
-                    HStack {
-                        Text("Date TBA")
-                            .font(.subheadline)
-                            .fontWeight(.semibold)
-                        Spacer()
-                        Text("Pull to refresh for updates")
-                            .font(.caption2)
-                            .foregroundStyle(.tertiary)
+            // Day cells
+            LazyVGrid(columns: columns, spacing: 4) {
+                ForEach(Array(cells.enumerated()), id: \.offset) { _, date in
+                    if let date {
+                        DayCell(
+                            date: date,
+                            isToday: cal.isDateInToday(date),
+                            isSelected: cal.isDate(date, inSameDayAs: selectedDate),
+                            isPast: date < today,
+                            episodes: episodesByDate[date] ?? []
+                        )
+                        .onTapGesture {
+                            withAnimation(.easeInOut(duration: 0.15)) {
+                                selectedDate = date
+                            }
+                        }
+                    } else {
+                        Color.clear
+                            .frame(height: 36)
                     }
                 }
             }
-        }
-        .listStyle(.insetGrouped)
-        .refreshable {
-            await RefreshService.shared.refreshAllShows(modelContext: modelContext)
         }
     }
 }
 
-// MARK: - Day Header
+// MARK: - Day Cell
 
-struct CalendarDayHeader: View {
-    let day: WatchPlanner.CalendarDay
+struct DayCell: View {
+    let date: Date
+    let isToday: Bool
+    let isSelected: Bool
+    let isPast: Bool
+    let episodes: [Episode]
 
-    private var label: String {
+    private var dayNumberColor: Color {
+        if isSelected { return isToday ? .white : .primary }
+        if isPast { return Color(.tertiaryLabel) }
+        return .primary
+    }
+
+    /// Up to 3 dot colors: indigo for planned, then orange (today) or accent (future) per episode slot.
+    private var dotColors: [Color] {
+        guard !episodes.isEmpty else { return [] }
         let cal = Calendar.current
-        if day.isToday { return "Today" }
-        if cal.isDateInTomorrow(day.date) { return "Tomorrow" }
-        let formatter = DateFormatter()
-        formatter.dateFormat = "EEEE, MMM d"
-        return formatter.string(from: day.date)
+        let baseColor: Color = isToday ? .orange : .accentColor
+        let hasPlanned = episodes.contains { ep in
+            guard let d = ep.plannedDate else { return false }
+            return cal.isDate(d, inSameDayAs: date)
+        }
+        var colors: [Color] = hasPlanned ? [.indigo] : []
+        let remaining = min(3 - colors.count, episodes.count)
+        colors += Array(repeating: baseColor, count: remaining)
+        return Array(colors.prefix(3))
     }
 
     var body: some View {
-        HStack(spacing: 8) {
-            Text(label)
-                .font(.subheadline)
-                .fontWeight(.semibold)
-                .foregroundStyle(day.isToday ? Color.accentColor : .primary)
+        VStack(spacing: 3) {
+            ZStack {
+                if isSelected {
+                    Circle()
+                        .fill(isToday ? Color.accentColor : Color(.systemGray4))
+                        .frame(width: 30, height: 30)
+                } else if isToday {
+                    Circle()
+                        .fill(Color.accentColor.opacity(0.15))
+                        .frame(width: 30, height: 30)
+                }
 
-            if day.isToday {
-                Text("TODAY")
-                    .font(.caption2)
-                    .fontWeight(.bold)
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 2)
-                    .background(Color.accentColor)
-                    .clipShape(Capsule())
+                Text(date.formatted(.dateTime.day()))
+                    .font(.callout)
+                    .fontWeight(isToday || isSelected ? .semibold : .regular)
+                    .foregroundColor(dayNumberColor)
             }
+            .frame(width: 30, height: 30)
 
-            Spacer()
-
-            Text("\(day.episodes.count) ep\(day.episodes.count == 1 ? "" : "s")")
-                .font(.caption)
-                .foregroundStyle(.tertiary)
+            // Multi-dot episode indicator
+            HStack(spacing: 2) {
+                ForEach(Array(dotColors.enumerated()), id: \.offset) { _, color in
+                    Circle()
+                        .fill(color)
+                        .frame(width: 4, height: 4)
+                }
+            }
+            .frame(height: 4)
         }
+        .frame(height: 46)
+        .frame(maxWidth: .infinity)
+        .contentShape(Rectangle())
     }
 }
 
@@ -131,37 +329,34 @@ struct CalendarEpisodeRow: View {
     private var show: Show? { episode.show }
 
     private var cal: Calendar { Calendar.current }
-    private var today: Date { cal.startOfDay(for: .now) }
-    private var isPast: Bool { episode.airDate < today }
     private var isToday: Bool { cal.isDateInToday(episode.airDate) }
 
     private var planLabel: String? {
         guard let d = episode.plannedDate else { return nil }
         if cal.isDateInToday(d) { return "Tonight" }
         if cal.isDateInTomorrow(d) { return "Tomorrow" }
-        let f = DateFormatter()
-        f.dateFormat = "EEE"
-        return f.string(from: d)
+        return d.formatted(.dateTime.weekday(.abbreviated))
     }
 
     var body: some View {
         HStack(spacing: 12) {
-            // Watched indicator strip
+            // Accent strip: orange for today's drops, clear for upcoming
             RoundedRectangle(cornerRadius: 2)
                 .frame(width: 3)
-                .foregroundStyle(
-                    episode.isWatched ? Color.green :
-                    isToday ? Color.orange :
-                    isPast ? Color.blue :
-                    Color.clear
-                )
+                .foregroundStyle(isToday ? Color.orange : Color.clear)
                 .frame(height: 44)
 
             VStack(alignment: .leading, spacing: 3) {
-                Text(show?.title ?? "Unknown Show")
-                    .font(.subheadline)
-                    .fontWeight(.medium)
-                    .foregroundStyle(episode.isWatched ? .secondary : .primary)
+                HStack(alignment: .firstTextBaseline) {
+                    Text(show?.title ?? "Unknown Show")
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                        .lineLimit(1)
+                    Spacer()
+                    if let platform = show?.platform {
+                        PlatformBadge(platform: platform)
+                    }
+                }
                 Text(episode.displayTitle)
                     .font(.caption)
                     .foregroundStyle(.tertiary)
@@ -170,30 +365,15 @@ struct CalendarEpisodeRow: View {
 
             Spacer()
 
-            HStack(spacing: 6) {
-                if episode.isWatched {
-                    Image(systemName: "checkmark.circle.fill")
-                        .foregroundStyle(.green)
-                        .imageScale(.small)
-                } else if let plan = planLabel {
-                    Text(plan)
-                        .font(.caption2)
-                        .fontWeight(.semibold)
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 3)
-                        .background(Color.indigo)
-                        .clipShape(Capsule())
-                } else if isPast {
-                    Text("Unwatched")
-                        .font(.caption2)
-                        .fontWeight(.medium)
-                        .foregroundStyle(.blue)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 3)
-                        .background(Color.blue.opacity(0.12))
-                        .clipShape(Capsule())
-                }
+            if let plan = planLabel {
+                Text(plan)
+                    .font(.caption2)
+                    .fontWeight(.semibold)
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 3)
+                    .background(Color.indigo)
+                    .clipShape(Capsule())
             }
         }
         .padding(.vertical, 2)
@@ -228,6 +408,15 @@ struct CalendarEpisodeRow: View {
     }
 }
 
+// MARK: - Calendar helpers
+
+extension Calendar {
+    func startOfMonth(for date: Date) -> Date {
+        let comps = dateComponents([.year, .month], from: date)
+        return self.date(from: comps) ?? date
+    }
+}
+
 // MARK: - Preview
 
 #Preview {
@@ -247,17 +436,16 @@ private var calendarPreviewContainer: ModelContainer = {
     let show3 = Show(title: "The Last of Us", platform: "Max")
     ctx.insert(show3)
 
-    for i in -3..<12 {
+    for i in 0..<14 {
         let showIdx = i % 3
         let show = showIdx == 0 ? show1 : showIdx == 1 ? show2 : show3
         let ep = Episode(
             seasonNumber: 2,
-            episodeNumber: abs(i) + 1,
-            title: "Episode \(abs(i) + 1)",
-            airDate: Calendar.current.date(byAdding: .day, value: i * 2, to: .now)!
+            episodeNumber: i + 1,
+            title: "Episode \(i + 1)",
+            airDate: Calendar.current.date(byAdding: .day, value: i * 3, to: .now)!
         )
         ep.show = show
-        if i < -1 { ep.isWatched = true }
         ctx.insert(ep)
     }
     return container

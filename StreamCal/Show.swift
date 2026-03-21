@@ -128,10 +128,7 @@ final class Show: Identifiable {
             let count = backlogCount
             return count > 1 ? "Backlog: \(count) eps" : "Available now"
         }
-        let formatter = DateFormatter()
-        formatter.dateStyle = .medium
-        formatter.timeStyle = .none
-        return formatter.string(from: ep.airDate)
+        return ep.airDate.formatted(date: .abbreviated, time: .omitted)
     }
 
     var sortedEpisodes: [Episode] {
