@@ -208,6 +208,15 @@ final class TMDBService: Sendable {
 
     // MARK: - Search
 
+    // MARK: - Trending Shows (used for pre-search suggestions)
+
+    func fetchTrendingShows() async throws -> [TMDBShow] {
+        let req = try request(path: "/trending/tv/week")
+        let (data, _) = try await session.data(for: req)
+        let response = try JSONDecoder().decode(TMDBSearchResponse.self, from: data)
+        return response.results
+    }
+
     func searchShows(query: String) async throws -> [TMDBShow] {
         let req = try request(path: "/search/tv", queryItems: [
             URLQueryItem(name: "query", value: query),

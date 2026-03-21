@@ -51,7 +51,13 @@ struct ESPNEvent: Decodable, Identifiable {
     let competitions: [ESPNCompetition]
 
     var parsedDate: Date? {
-        ISO8601DateFormatter().date(from: date)
+        // ESPN omits seconds in some responses ("2025-09-07T17:00Z"), which the
+        // default ISO8601DateFormatter won't parse. Try with and without seconds.
+        let iso = ISO8601DateFormatter()
+        if let d = iso.date(from: date) { return d }
+        // Append ":00" before the Z and retry
+        let withSeconds = date.replacingOccurrences(of: "Z", with: ":00Z")
+        return iso.date(from: withSeconds)
     }
 }
 

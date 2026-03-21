@@ -12,6 +12,8 @@ struct AddShowSheet: View {
 
     @State private var searchText = ""
     @State private var results: [TMDBShow] = []
+    @State private var suggestions: [TMDBShow] = []
+    @State private var isLoadingSuggestions = false
     @State private var isSearching = false
     @State private var isImporting = false
     @State private var importError: String? = nil
@@ -55,6 +57,9 @@ struct AddShowSheet: View {
                     editNotes = show.notes
                 }
                 loadLibraryIDs()
+                if !isEditMode {
+                    Task { await loadSuggestions() }
+                }
             }
         }
     }
@@ -87,6 +92,26 @@ struct AddShowSheet: View {
                 }
             } else if results.isEmpty && !searchText.isEmpty && !isSearching {
                 ContentUnavailableView.search(text: searchText)
+            } else if searchText.isEmpty {
+                if isLoadingSuggestions {
+                    HStack { Spacer(); ProgressView(); Spacer() }
+                        .listRowBackground(Color.clear)
+                        .padding(.vertical, 20)
+                } else if !suggestions.isEmpty {
+                    Section("Trending This Week") {
+                        ForEach(suggestions) { show in
+                            let alreadyAdded = libraryTMDBIDs.contains(show.id)
+                            Button {
+                                guard !alreadyAdded else { return }
+                                Task { await importShow(show) }
+                            } label: {
+                                SearchResultRow(show: show, alreadyAdded: alreadyAdded)
+                            }
+                            .buttonStyle(.plain)
+                            .disabled(alreadyAdded)
+                        }
+                    }
+                }
             } else {
                 ForEach(results) { show in
                     let alreadyAdded = libraryTMDBIDs.contains(show.id)
@@ -156,6 +181,12 @@ struct AddShowSheet: View {
     }
 
     // MARK: - Search Logic
+
+    private func loadSuggestions() async {
+        isLoadingSuggestions = true
+        suggestions = (try? await TMDBService.shared.fetchTrendingShows()) ?? []
+        isLoadingSuggestions = false
+    }
 
     private func loadLibraryIDs() {
         let descriptor = FetchDescriptor<Show>()

@@ -5,11 +5,26 @@ struct SportsView: View {
 
     @Environment(\.modelContext) private var modelContext
 
-    @Query(sort: \SportTeam.createdAt, order: .reverse)
+    @Query(sort: \SportTeam.name)
     private var teams: [SportTeam]
 
     @State private var showingAddTeam = false
     @State private var addedTeamName: String? = nil
+
+    /// Sport display order and icon mapping
+    private let sportOrder = ["NFL", "NBA", "MLB", "NHL", "Soccer", "Basketball",
+                               "American Football", "Baseball", "Ice Hockey"]
+
+    private var teamsBySport: [(sport: String, teams: [SportTeam])] {
+        let grouped = Dictionary(grouping: teams) { $0.sport }
+        return grouped
+            .map { (sport: $0.key, teams: $0.value.sorted { $0.name < $1.name }) }
+            .sorted { lhs, rhs in
+                let li = sportOrder.firstIndex(of: lhs.sport) ?? Int.max
+                let ri = sportOrder.firstIndex(of: rhs.sport) ?? Int.max
+                return li == ri ? lhs.sport < rhs.sport : li < ri
+            }
+    }
 
     var body: some View {
         Group {
@@ -21,15 +36,19 @@ struct SportsView: View {
                 )
             } else {
                 List {
-                    ForEach(teams) { team in
-                        NavigationLink(destination: TeamDetailView(team: team)) {
-                            TeamRowView(team: team)
-                        }
-                        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                            Button(role: .destructive) {
-                                modelContext.delete(team)
-                            } label: {
-                                Label("Remove", systemImage: "trash")
+                    ForEach(teamsBySport, id: \.sport) { group in
+                        Section(group.sport) {
+                            ForEach(group.teams) { team in
+                                NavigationLink(destination: TeamDetailView(team: team)) {
+                                    TeamRowView(team: team)
+                                }
+                                .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                                    Button(role: .destructive) {
+                                        modelContext.delete(team)
+                                    } label: {
+                                        Label("Remove", systemImage: "trash")
+                                    }
+                                }
                             }
                         }
                     }
