@@ -3,6 +3,9 @@ import SwiftData
 
 struct LibraryView: View {
 
+    /// When false, the view is embedded in LibraryContainerView which provides the NavigationStack.
+    var standalone: Bool = true
+
     @Environment(\.modelContext) private var modelContext
 
     @Query(sort: \Show.createdAt, order: .reverse)
@@ -26,8 +29,16 @@ struct LibraryView: View {
     var archivedShows: [Show] { shows.filter { $0.isArchived } }
 
     var body: some View {
-        NavigationStack {
-            Group {
+        if standalone {
+            NavigationStack { innerBody.navigationTitle("Library") }
+        } else {
+            innerBody
+        }
+    }
+
+    @ViewBuilder
+    private var innerBody: some View {
+        Group {
                 if shows.isEmpty {
                     ContentUnavailableView(
                         "No Shows Yet",
@@ -119,7 +130,6 @@ struct LibraryView: View {
                     }
                 }
             }
-            .navigationTitle("Library")
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
@@ -149,7 +159,6 @@ struct LibraryView: View {
                 }
             }
             .animation(.spring(duration: 0.4), value: addedShowTitle)
-        }
     }
 }
 

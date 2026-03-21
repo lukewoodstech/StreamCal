@@ -169,6 +169,77 @@ actor NotificationService {
         return parts.joined(separator: " · ")
     }
 
+    // MARK: - Movie Notifications
+
+    func scheduleNotification(for movie: Movie) async {
+        let status = await authorizationStatus()
+        guard status == .authorized, movie.notificationsEnabled else { return }
+        guard movie.theatricalReleaseDate != .distantFuture,
+              movie.theatricalReleaseDate > .now else { return }
+
+        let id = movieNotificationID(movie)
+        let content = UNMutableNotificationContent()
+        content.title = movie.title
+        content.body = "In theaters today"
+        content.sound = .default
+
+        var dateComponents = Calendar.current.dateComponents(
+            [.year, .month, .day], from: movie.theatricalReleaseDate
+        )
+        dateComponents.hour = airReminderHour
+        dateComponents.minute = 0
+
+        let trigger = UNCalendarNotificationTrigger(dateMatching: dateComponents, repeats: false)
+        let request = UNNotificationRequest(identifier: id, content: content, trigger: trigger)
+        try? await center.add(request)
+    }
+
+    func cancelMovieNotification(tmdbID: Int) {
+        center.removePendingNotificationRequests(withIdentifiers: ["streamcal-movie-\(tmdbID)-theatrical"])
+    }
+
+    private func movieNotificationID(_ movie: Movie) -> String {
+        if let tmdbID = movie.tmdbID { return "streamcal-movie-\(tmdbID)-theatrical" }
+        return "streamcal-movie-\(movie.title.lowercased().replacingOccurrences(of: " ", with: "-"))-theatrical"
+    }
+
+    // MARK: - Game Notifications
+
+    func scheduleNotifications(for team: SportTeam) async {
+        let status = await authorizationStatus()
+        guard status == .authorized, team.notificationsEnabled else { return }
+
+        let minutesBefore = (UserDefaults.standard.object(forKey: "gameReminderMinutesBefore") as? Int) ?? 120
+        let offset = TimeInterval(minutesBefore * 60)
+
+        for game in team.games where !game.isCompleted && game.gameDate != .distantFuture && game.gameDate > .now {
+            let fireDate = game.gameDate.addingTimeInterval(-offset)
+            guard fireDate > .now else { continue }
+
+            let content = UNMutableNotificationContent()
+            content.title = game.displayTitle
+            content.body = minutesBefore >= 60
+                ? "Starts in \(minutesBefore / 60) hour\(minutesBefore / 60 == 1 ? "" : "s")"
+                : "Starts in \(minutesBefore) min"
+            content.sound = .default
+
+            let components = Calendar.current.dateComponents(
+                [.year, .month, .day, .hour, .minute], from: fireDate
+            )
+            let trigger = UNCalendarNotificationTrigger(dateMatching: components, repeats: false)
+            let id = "streamcal-game-\(game.sportsDBEventID)"
+            let request = UNNotificationRequest(identifier: id, content: content, trigger: trigger)
+            try? await center.add(request)
+        }
+    }
+
+    func cancelGameNotifications(for team: SportTeam) {
+        let ids = team.games.map { "streamcal-game-\($0.sportsDBEventID)" }
+        center.removePendingNotificationRequests(withIdentifiers: ids)
+    }
+
+    // MARK: - ID helpers
+
     private func notificationID(for episode: Episode, suffix: String = "air") -> String {
         let showTitle = episode.show?.title ?? "unknown"
         return "streamcal-\(showTitle)-s\(episode.seasonNumber)e\(episode.episodeNumber)-\(suffix)"

@@ -33,6 +33,73 @@ final class RefreshService {
         await NotificationService.shared.scheduleNotifications(for: show)
     }
 
+    // MARK: - Movies
+
+    func refreshAllMovies(modelContext: ModelContext) async {
+        let descriptor = FetchDescriptor<Movie>()
+        guard let movies = try? modelContext.fetch(descriptor) else { return }
+        let tracked = movies.filter { $0.tmdbID != nil && !$0.isArchived }
+        guard !tracked.isEmpty else { return }
+
+        for movie in tracked {
+            guard let tmdbID = movie.tmdbID else { continue }
+            guard let details = try? await TMDBService.shared.fetchMovieDetails(tmdbID: tmdbID) else { continue }
+            movie.theatricalReleaseDate = details.usTheatricalDate() ?? .distantFuture
+            movie.streamingReleaseDate = details.usStreamingDate()
+            movie.tmdbStatus = details.status
+            movie.updatedAt = .now
+        }
+
+        try? modelContext.save()
+    }
+
+    // MARK: - Sports
+
+    func refreshAllTeams(modelContext: ModelContext) async {
+        let descriptor = FetchDescriptor<SportTeam>()
+        guard let teams = try? modelContext.fetch(descriptor) else { return }
+        guard !teams.isEmpty else { return }
+
+        for team in teams {
+            await refreshTeam(team, modelContext: modelContext)
+            try? await Task.sleep(for: .milliseconds(350)) // rate-limit free tier
+        }
+
+        try? modelContext.save()
+    }
+
+    func refreshTeam(_ team: SportTeam, modelContext: ModelContext) async {
+        guard let events = try? await TheSportsDBService.shared.fetchNextEvents(teamID: team.sportsDBID) else { return }
+
+        var existingMap: [String: SportGame] = [:]
+        for game in team.games {
+            existingMap[game.sportsDBEventID] = game
+        }
+
+        for event in events {
+            if let existing = existingMap[event.idEvent] {
+                existing.result = event.result
+                existing.isCompleted = event.isCompleted
+                if let date = event.parsedGameDate { existing.gameDate = date }
+            } else {
+                let game = SportGame(
+                    sportsDBEventID: event.idEvent,
+                    title: event.strEvent,
+                    homeTeam: event.strHomeTeam ?? "",
+                    awayTeam: event.strAwayTeam ?? "",
+                    gameDate: event.parsedGameDate ?? .distantFuture,
+                    venue: event.strVenue,
+                    round: event.strRound,
+                    season: event.strSeason,
+                    result: event.result,
+                    isCompleted: event.isCompleted
+                )
+                game.team = team
+                modelContext.insert(game)
+            }
+        }
+    }
+
     // MARK: - Private
 
     /// Core upsert logic — fetches fresh data from TMDB and syncs into SwiftData.

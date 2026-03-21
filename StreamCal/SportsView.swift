@@ -1,0 +1,216 @@
+import SwiftUI
+import SwiftData
+
+struct SportsView: View {
+
+    @Environment(\.modelContext) private var modelContext
+
+    @Query(sort: \SportTeam.createdAt, order: .reverse)
+    private var teams: [SportTeam]
+
+    @State private var showingAddTeam = false
+    @State private var addedTeamName: String? = nil
+
+    var body: some View {
+        Group {
+            if teams.isEmpty {
+                ContentUnavailableView(
+                    "No Teams Yet",
+                    systemImage: "sportscourt.fill",
+                    description: Text("Tap + to follow a team.")
+                )
+            } else {
+                List {
+                    ForEach(teams) { team in
+                        NavigationLink(destination: TeamDetailView(team: team)) {
+                            TeamRowView(team: team)
+                        }
+                        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                            Button(role: .destructive) {
+                                modelContext.delete(team)
+                            } label: {
+                                Label("Remove", systemImage: "trash")
+                            }
+                        }
+                    }
+                }
+                .listStyle(.plain)
+                .refreshable {
+                    await RefreshService.shared.refreshAllTeams(modelContext: modelContext)
+                }
+            }
+        }
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button { showingAddTeam = true } label: {
+                    Image(systemName: "plus")
+                }
+            }
+        }
+        .sheet(isPresented: $showingAddTeam) {
+            AddTeamSheet(onAdded: { name in addedTeamName = name })
+        }
+        .overlay(alignment: .bottom) {
+            if let name = addedTeamName {
+                AddedToastView(showTitle: name)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                    .onAppear {
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) {
+                            withAnimation(.easeOut(duration: 0.3)) { addedTeamName = nil }
+                        }
+                    }
+                    .padding(.bottom, 16)
+            }
+        }
+        .animation(.spring(duration: 0.4), value: addedTeamName)
+    }
+}
+
+// MARK: - Team Row
+
+struct TeamRowView: View {
+    let team: SportTeam
+
+    private var upcomingGames: [SportGame] {
+        let now = Date.now
+        return team.games
+            .filter { !$0.isCompleted && $0.gameDate > now }
+            .sorted { $0.gameDate < $1.gameDate }
+    }
+
+    private var nextGame: SportGame? { upcomingGames.first }
+
+    var body: some View {
+        HStack(spacing: 12) {
+            AsyncImage(url: team.badgeImageURL) { phase in
+                switch phase {
+                case .success(let image):
+                    image.resizable().aspectRatio(contentMode: .fit)
+                case .failure, .empty:
+                    RoundedRectangle(cornerRadius: 6)
+                        .foregroundStyle(Color(.systemGray5))
+                        .overlay {
+                            Image(systemName: "sportscourt")
+                                .foregroundStyle(.tertiary)
+                                .imageScale(.small)
+                        }
+                @unknown default:
+                    RoundedRectangle(cornerRadius: 6)
+                        .foregroundStyle(Color(.systemGray5))
+                }
+            }
+            .frame(width: 44, height: 44)
+            .clipShape(RoundedRectangle(cornerRadius: 6))
+
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(alignment: .firstTextBaseline) {
+                    Text(team.name)
+                        .font(.headline)
+                        .lineLimit(1)
+                    Spacer()
+                    Text(team.league)
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(Color(.systemGray5))
+                        .clipShape(Capsule())
+                }
+
+                if let game = nextGame {
+                    HStack(spacing: 4) {
+                        Image(systemName: "calendar")
+                            .imageScale(.small)
+                            .foregroundStyle(.secondary)
+                        Text(game.displayTitle)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                        Spacer()
+                        Text(game.gameDate, style: .date)
+                            .font(.caption2)
+                            .foregroundStyle(.tertiary)
+                    }
+                } else {
+                    Text("No upcoming games")
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
+                }
+            }
+        }
+        .padding(.vertical, 3)
+    }
+}
+
+// MARK: - Game Row (reused in TeamDetailView)
+
+struct GameRowView: View {
+    let game: SportGame
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(game.displayTitle)
+                .font(.subheadline)
+                .fontWeight(.medium)
+                .lineLimit(2)
+
+            HStack(spacing: 12) {
+                if game.isCompleted {
+                    if let result = game.result {
+                        Text(result)
+                            .font(.caption)
+                            .fontWeight(.semibold)
+                            .foregroundStyle(.primary)
+                    }
+                    Text("Final")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                } else {
+                    Image(systemName: "calendar")
+                        .imageScale(.small)
+                        .foregroundStyle(.secondary)
+                    if game.gameDate == .distantFuture {
+                        Text("TBA")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    } else {
+                        Text(game.gameDate, style: .date)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Text("·")
+                            .font(.caption)
+                            .foregroundStyle(.tertiary)
+                        Text(game.formattedGameTime)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+                if let venue = game.venue {
+                    Text("·")
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
+                    Text(venue)
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
+                        .lineLimit(1)
+                }
+            }
+
+            if let round = game.round {
+                Text(round)
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+            }
+        }
+        .padding(.vertical, 2)
+        .opacity(game.isCompleted ? 0.7 : 1)
+    }
+}
+
+#Preview {
+    NavigationStack {
+        SportsView()
+    }
+    .modelContainer(for: [SportTeam.self, SportGame.self], inMemory: true)
+}

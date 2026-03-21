@@ -175,32 +175,68 @@ final class WatchPlanner {
     struct CalendarDay {
         let date: Date
         let episodes: [Episode]
+        var movies: [Movie] = []
+        var games: [SportGame] = []
         var isToday: Bool { Calendar.current.isDateInToday(date) }
         var isPast: Bool { date < Calendar.current.startOfDay(for: .now) }
+        var isEmpty: Bool { episodes.isEmpty && movies.isEmpty && games.isEmpty }
     }
 
-    /// Groups episodes into calendar days: today through 60 days forward.
-    /// Excludes archived shows, watched episodes, and TBA episodes.
+    /// Groups episodes, movies, and games into calendar days: today through 60 days forward.
+    /// Excludes archived shows/movies, watched episodes, and TBA dates.
     /// Sorted by date ascending.
-    static func calendarDays(from episodes: [Episode]) -> [CalendarDay] {
+    static func calendarDays(
+        from episodes: [Episode],
+        movies: [Movie] = [],
+        games: [SportGame] = []
+    ) -> [CalendarDay] {
         let cal = Calendar.current
         let today = cal.startOfDay(for: .now)
         guard let end = cal.date(byAdding: .day, value: 60, to: today) else { return [] }
 
+        // Episodes
         let windowed = episodes.filter {
             guard $0.show?.isArchived != true else { return false }
             return !$0.isWatched && $0.airDate != .distantFuture && $0.airDate >= today && $0.airDate < end
         }
-
-        var dict: [Date: [Episode]] = [:]
+        var episodeDict: [Date: [Episode]] = [:]
         for ep in windowed {
             let day = cal.startOfDay(for: ep.airDate)
-            dict[day, default: []].append(ep)
+            episodeDict[day, default: []].append(ep)
         }
 
-        return dict
-            .map { CalendarDay(date: $0.key, episodes: $0.value.sorted { $0.show?.title ?? "" < $1.show?.title ?? "" }) }
-            .sorted { $0.date < $1.date }
+        // Movies
+        let windowedMovies = movies.filter {
+            guard !$0.isArchived && !$0.isWatched else { return false }
+            let date = $0.primaryCalendarDate
+            return date != .distantFuture && date >= today && date < end
+        }
+        var movieDict: [Date: [Movie]] = [:]
+        for movie in windowedMovies {
+            let day = cal.startOfDay(for: movie.primaryCalendarDate)
+            movieDict[day, default: []].append(movie)
+        }
+
+        // Games
+        let windowedGames = games.filter {
+            $0.gameDate != .distantFuture && $0.gameDate >= today && $0.gameDate < end && !$0.isCompleted
+        }
+        var gameDict: [Date: [SportGame]] = [:]
+        for game in windowedGames {
+            let day = cal.startOfDay(for: game.gameDate)
+            gameDict[day, default: []].append(game)
+        }
+
+        // Merge all dates
+        let allDates = Set(episodeDict.keys).union(movieDict.keys).union(gameDict.keys)
+        return allDates.map { date in
+            CalendarDay(
+                date: date,
+                episodes: (episodeDict[date] ?? []).sorted { $0.show?.title ?? "" < $1.show?.title ?? "" },
+                movies: (movieDict[date] ?? []).sorted { $0.title < $1.title },
+                games: (gameDict[date] ?? []).sorted { $0.gameDate < $1.gameDate }
+            )
+        }.sorted { $0.date < $1.date }
     }
 
     // MARK: - Progress summaries

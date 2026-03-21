@@ -85,6 +85,103 @@ struct TMDBEpisode: Decodable, Sendable {
     }
 }
 
+// MARK: - TMDB Movie Response Models
+
+struct TMDBMovieSearchResponse: Decodable, Sendable {
+    let results: [TMDBMovie]
+}
+
+struct TMDBMovie: Decodable, Identifiable, Sendable {
+    let id: Int
+    let title: String
+    let overview: String?
+    let posterPath: String?
+    let releaseDate: String?        // primary theatrical, "yyyy-MM-dd"
+    let voteAverage: Double?
+    let status: String?
+    let tagline: String?
+    let genres: [TMDBMovieGenre]?
+    let releaseDates: TMDBReleaseDatesWrapper?   // present when append_to_response=release_dates
+
+    var posterURL: URL? {
+        guard let path = posterPath else { return nil }
+        return URL(string: "https://image.tmdb.org/t/p/w300\(path)")
+    }
+
+    var posterThumbnailURL: URL? {
+        guard let path = posterPath else { return nil }
+        return URL(string: "https://image.tmdb.org/t/p/w92\(path)")
+    }
+
+    var parsedReleaseDate: Date? { parseDate(releaseDate) }
+
+    /// US theatrical release date (type 3) from the appended release_dates.
+    /// Falls back to the root `release_date` field.
+    func usTheatricalDate() -> Date? {
+        let fromReleaseDates = releaseDates?.results
+            .first(where: { $0.iso31661 == "US" })?
+            .releaseDates
+            .filter { $0.type == 3 }
+            .compactMap { parseDate($0.releaseDate) }
+            .min()
+        return fromReleaseDates ?? parsedReleaseDate
+    }
+
+    /// US digital/streaming release date (type 4).
+    func usStreamingDate() -> Date? {
+        releaseDates?.results
+            .first(where: { $0.iso31661 == "US" })?
+            .releaseDates
+            .filter { $0.type == 4 }
+            .compactMap { parseDate($0.releaseDate) }
+            .min()
+    }
+
+    private func parseDate(_ raw: String?) -> Date? {
+        guard let raw, !raw.isEmpty else { return nil }
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd"
+        formatter.timeZone = .current
+        guard let date = formatter.date(from: raw) else { return nil }
+        return Calendar.current.startOfDay(for: date)
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case id, title, overview, status, tagline, genres
+        case posterPath = "poster_path"
+        case releaseDate = "release_date"
+        case voteAverage = "vote_average"
+        case releaseDates = "release_dates"
+    }
+}
+
+struct TMDBMovieGenre: Decodable, Sendable {
+    let id: Int
+    let name: String
+}
+
+struct TMDBReleaseDatesWrapper: Decodable, Sendable {
+    let results: [TMDBCountryReleases]
+}
+
+struct TMDBCountryReleases: Decodable, Sendable {
+    let iso31661: String
+    let releaseDates: [TMDBReleaseDate]
+    enum CodingKeys: String, CodingKey {
+        case iso31661 = "iso_3166_1"
+        case releaseDates = "release_dates"
+    }
+}
+
+struct TMDBReleaseDate: Decodable, Sendable {
+    let releaseDate: String     // ISO 8601
+    let type: Int               // 3 = theatrical, 4 = digital
+    enum CodingKeys: String, CodingKey {
+        case releaseDate = "release_date"
+        case type
+    }
+}
+
 // MARK: - TMDB Service
 
 final class TMDBService: Sendable {
@@ -152,5 +249,41 @@ final class TMDBService: Sendable {
             allEpisodes.append(contentsOf: episodes)
         }
         return allEpisodes
+    }
+
+    // MARK: - Movie Search
+
+    func searchMovies(query: String) async throws -> [TMDBMovie] {
+        let req = try request(path: "/search/movie", queryItems: [
+            URLQueryItem(name: "query", value: query),
+            URLQueryItem(name: "page", value: "1")
+        ])
+        let (data, _) = try await session.data(for: req)
+        let response = try JSONDecoder().decode(TMDBMovieSearchResponse.self, from: data)
+        return response.results
+    }
+
+    // MARK: - Movie Details (with release dates appended)
+
+    /// Single call that returns movie detail + US release dates.
+    /// Use `movie.usTheatricalDate()` and `movie.usStreamingDate()` on the result.
+    func fetchMovieDetails(tmdbID: Int) async throws -> TMDBMovie {
+        let req = try request(path: "/movie/\(tmdbID)", queryItems: [
+            URLQueryItem(name: "append_to_response", value: "release_dates")
+        ])
+        let (data, _) = try await session.data(for: req)
+        return try JSONDecoder().decode(TMDBMovie.self, from: data)
+    }
+
+    // MARK: - Upcoming Movies
+
+    func fetchUpcomingMovies() async throws -> [TMDBMovie] {
+        let req = try request(path: "/movie/upcoming", queryItems: [
+            URLQueryItem(name: "region", value: "US"),
+            URLQueryItem(name: "page", value: "1")
+        ])
+        let (data, _) = try await session.data(for: req)
+        let response = try JSONDecoder().decode(TMDBMovieSearchResponse.self, from: data)
+        return response.results
     }
 }

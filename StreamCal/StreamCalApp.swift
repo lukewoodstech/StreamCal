@@ -20,7 +20,7 @@ struct StreamCalApp: App {
                     await NotificationService.shared.requestPermission()
                 }
         }
-        .modelContainer(for: [Show.self, Episode.self]) { result in
+        .modelContainer(for: [Show.self, Episode.self, Movie.self, SportTeam.self, SportGame.self]) { result in
             guard let container = try? result.get() else { return }
             // Background refresh episodes + reschedule notifications on every launch
             Task { @MainActor in

@@ -8,24 +8,37 @@ struct CalendarView: View {
     @Query(sort: \Episode.airDate)
     private var allEpisodes: [Episode]
 
+    @Query(sort: \Movie.theatricalReleaseDate)
+    private var allMovies: [Movie]
+
+    @Query(sort: \SportGame.gameDate)
+    private var allGames: [SportGame]
+
     @State private var displayedMonth: Date = Calendar.current.startOfMonth(for: .now)
     @State private var selectedDate: Date = Calendar.current.startOfDay(for: .now)
 
     private var cal: Calendar { Calendar.current }
     private var today: Date { cal.startOfDay(for: .now) }
 
-    // O(1) lookup: midnight-local date → episodes that day
-    private var episodesByDate: [Date: [Episode]] {
-        var dict: [Date: [Episode]] = [:]
-        for day in WatchPlanner.calendarDays(from: allEpisodes) {
-            dict[day.date] = day.episodes
-        }
-        return dict
+    private var calendarDays: [WatchPlanner.CalendarDay] {
+        WatchPlanner.calendarDays(from: allEpisodes, movies: allMovies, games: allGames)
     }
 
-    private var selectedEpisodes: [Episode] {
-        episodesByDate[selectedDate] ?? []
+    // O(1) lookup: midnight-local date → CalendarDay
+    private var daysByDate: [Date: WatchPlanner.CalendarDay] {
+        Dictionary(uniqueKeysWithValues: calendarDays.map { ($0.date, $0) })
     }
+
+    // Legacy alias for MonthGridView episode dots
+    private var episodesByDate: [Date: [Episode]] {
+        daysByDate.mapValues { $0.episodes }
+    }
+
+    private var selectedDay: WatchPlanner.CalendarDay? { daysByDate[selectedDate] }
+    private var selectedEpisodes: [Episode] { selectedDay?.episodes ?? [] }
+    private var selectedMovies: [Movie] { selectedDay?.movies ?? [] }
+    private var selectedGames: [SportGame] { selectedDay?.games ?? [] }
+    private var selectedHasContent: Bool { !(selectedDay?.isEmpty ?? true) }
 
     var body: some View {
         NavigationStack {
@@ -34,6 +47,8 @@ struct CalendarView: View {
                     displayedMonth: $displayedMonth,
                     selectedDate: $selectedDate,
                     episodesByDate: episodesByDate,
+                    moviesByDate: daysByDate.mapValues { $0.movies },
+                    gamesByDate: daysByDate.mapValues { $0.games },
                     today: today,
                     onMonthChanged: { newMonth in
                         selectedDate = nearestDate(in: newMonth, from: episodesByDate) ?? cal.startOfMonth(for: newMonth)
@@ -55,13 +70,14 @@ struct CalendarView: View {
             .navigationTitle("Calendar")
             .refreshable {
                 await RefreshService.shared.refreshAllShows(modelContext: modelContext)
+                await RefreshService.shared.refreshAllMovies(modelContext: modelContext)
+                await RefreshService.shared.refreshAllTeams(modelContext: modelContext)
             }
             .onAppear {
                 selectedDate = nearestDate(from: today, in: episodesByDate) ?? today
             }
             .onChange(of: episodesByDate.keys.count) {
-                // Re-evaluate after a data refresh if still on today with no episodes
-                if selectedEpisodes.isEmpty {
+                if !selectedHasContent {
                     selectedDate = nearestDate(from: today, in: episodesByDate) ?? today
                 }
             }
@@ -86,16 +102,38 @@ struct CalendarView: View {
 
     private var dayPane: some View {
         Group {
-            if selectedEpisodes.isEmpty {
+            if !selectedHasContent {
                 nothingScheduledView
             } else {
                 List {
-                    Section {
-                        ForEach(selectedEpisodes) { episode in
-                            CalendarEpisodeRow(episode: episode)
+                    if !selectedEpisodes.isEmpty {
+                        Section {
+                            ForEach(selectedEpisodes) { episode in
+                                CalendarEpisodeRow(episode: episode)
+                            }
+                        } header: {
+                            dayPaneHeader
                         }
-                    } header: {
-                        dayPaneHeader
+                    } else {
+                        Section { EmptyView() } header: { dayPaneHeader }
+                    }
+
+                    if !selectedMovies.isEmpty {
+                        Section("Movies") {
+                            ForEach(selectedMovies) { movie in
+                                NavigationLink(destination: MovieDetailView(movie: movie)) {
+                                    CalendarMovieRow(movie: movie)
+                                }
+                            }
+                        }
+                    }
+
+                    if !selectedGames.isEmpty {
+                        Section("Sports") {
+                            ForEach(selectedGames) { game in
+                                CalendarGameRow(game: game)
+                            }
+                        }
                     }
                 }
                 .listStyle(.insetGrouped)
@@ -138,6 +176,8 @@ struct MonthGridView: View {
     @Binding var displayedMonth: Date
     @Binding var selectedDate: Date
     let episodesByDate: [Date: [Episode]]
+    var moviesByDate: [Date: [Movie]] = [:]
+    var gamesByDate: [Date: [SportGame]] = [:]
     let today: Date
     var onMonthChanged: ((Date) -> Void)? = nil
     var onGoToToday: (() -> Void)? = nil
@@ -232,7 +272,9 @@ struct MonthGridView: View {
                             isToday: cal.isDateInToday(date),
                             isSelected: cal.isDate(date, inSameDayAs: selectedDate),
                             isPast: date < today,
-                            episodes: episodesByDate[date] ?? []
+                            episodes: episodesByDate[date] ?? [],
+                            movies: moviesByDate[date] ?? [],
+                            games: gamesByDate[date] ?? []
                         )
                         .onTapGesture {
                             withAnimation(.easeInOut(duration: 0.15)) {
@@ -257,6 +299,8 @@ struct DayCell: View {
     let isSelected: Bool
     let isPast: Bool
     let episodes: [Episode]
+    var movies: [Movie] = []
+    var games: [SportGame] = []
 
     private var dayNumberColor: Color {
         if isSelected { return isToday ? .white : .primary }
@@ -264,11 +308,13 @@ struct DayCell: View {
         return .primary
     }
 
-    /// Up to 3 dot colors: orange (today) or accent (future) per episode slot.
+    /// Up to 3 dots, one per content type present, colored by type.
     private var dotColors: [Color] {
-        guard !episodes.isEmpty else { return [] }
-        let baseColor: Color = isToday ? .orange : .accentColor
-        return Array(repeating: baseColor, count: min(3, episodes.count))
+        var colors: [Color] = []
+        if !episodes.isEmpty { colors.append(isToday ? .orange : .accentColor) }
+        if !movies.isEmpty { colors.append(Color(red: 0.95, green: 0.35, blue: 0.35)) }
+        if !games.isEmpty { colors.append(.green) }
+        return Array(colors.prefix(3))
     }
 
     var body: some View {
@@ -385,6 +431,75 @@ struct CalendarEpisodeRow: View {
             }
             .tint(episode.isWatched ? .gray : .green)
         }
+    }
+}
+
+// MARK: - Calendar Movie Row
+
+struct CalendarMovieRow: View {
+    let movie: Movie
+    private var isToday: Bool { Calendar.current.isDateInToday(movie.primaryCalendarDate) }
+
+    var body: some View {
+        HStack(spacing: 12) {
+            AsyncImage(url: movie.posterImageURL.flatMap {
+                URL(string: $0.absoluteString.replacingOccurrences(of: "/w300", with: "/w92"))
+            }) { phase in
+                switch phase {
+                case .success(let image): image.resizable().aspectRatio(contentMode: .fill)
+                default:
+                    RoundedRectangle(cornerRadius: 4)
+                        .foregroundStyle(Color(.systemGray5))
+                        .overlay { Image(systemName: "film").foregroundStyle(.tertiary).imageScale(.small) }
+                }
+            }
+            .frame(width: 30, height: 44)
+            .clipShape(RoundedRectangle(cornerRadius: 4))
+            .overlay(RoundedRectangle(cornerRadius: 4)
+                .stroke(isToday ? Color(red: 0.95, green: 0.35, blue: 0.35) : Color.clear, lineWidth: 2))
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(movie.title)
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+                    .lineLimit(1)
+                Text(movie.releaseStatus == .streaming ? "Streaming now" : "In theaters")
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+            }
+            Spacer()
+        }
+        .padding(.vertical, 2)
+    }
+}
+
+// MARK: - Calendar Game Row
+
+struct CalendarGameRow: View {
+    let game: SportGame
+    private var isToday: Bool { Calendar.current.isDateInToday(game.gameDate) }
+
+    var body: some View {
+        HStack(spacing: 12) {
+            RoundedRectangle(cornerRadius: 4)
+                .foregroundStyle(Color(.systemGray5))
+                .overlay { Image(systemName: "sportscourt").foregroundStyle(.tertiary).imageScale(.small) }
+                .frame(width: 30, height: 44)
+                .overlay(RoundedRectangle(cornerRadius: 4)
+                    .stroke(isToday ? Color.green : Color.clear, lineWidth: 2))
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(game.displayTitle)
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+                    .lineLimit(2)
+                Text(game.formattedGameTime)
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+            }
+            Spacer()
+        }
+        .padding(.vertical, 2)
     }
 }
 
