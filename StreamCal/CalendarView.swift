@@ -68,6 +68,7 @@ struct CalendarView: View {
                 dayPane
             }
             .navigationTitle("Calendar")
+            .navigationBarTitleDisplayMode(.inline)
             .refreshable {
                 await RefreshService.shared.refreshAllShows(modelContext: modelContext)
                 await RefreshService.shared.refreshAllMovies(modelContext: modelContext)
@@ -481,12 +482,20 @@ struct CalendarGameRow: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            RoundedRectangle(cornerRadius: 4)
-                .foregroundStyle(Color(.systemGray5))
-                .overlay { Image(systemName: "sportscourt").foregroundStyle(.tertiary).imageScale(.small) }
-                .frame(width: 30, height: 44)
-                .overlay(RoundedRectangle(cornerRadius: 4)
-                    .stroke(isToday ? Color.green : Color.clear, lineWidth: 2))
+            AsyncImage(url: game.team?.badgeImageURL) { phase in
+                switch phase {
+                case .success(let image):
+                    image.resizable().aspectRatio(contentMode: .fit)
+                default:
+                    RoundedRectangle(cornerRadius: 4)
+                        .foregroundStyle(Color(.systemGray5))
+                        .overlay { Image(systemName: "sportscourt").foregroundStyle(.tertiary).imageScale(.small) }
+                }
+            }
+            .frame(width: 30, height: 44)
+            .clipShape(RoundedRectangle(cornerRadius: 4))
+            .overlay(RoundedRectangle(cornerRadius: 4)
+                .stroke(isToday ? Color.green : Color.clear, lineWidth: 2))
 
             VStack(alignment: .leading, spacing: 3) {
                 Text(game.displayTitle)

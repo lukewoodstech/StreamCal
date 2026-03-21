@@ -8,24 +8,74 @@ struct NextUpView: View {
     @Query(sort: \Show.title)
     private var shows: [Show]
 
+    @Query(sort: \Movie.theatricalReleaseDate)
+    private var movies: [Movie]
+
+    @Query(sort: \SportGame.gameDate)
+    private var games: [SportGame]
+
     private var activeShows: [Show] { shows.filter { !$0.isArchived } }
 
-    // Future-release sections only — no backlog or progress content
+    // MARK: - TV sections
+
     private var airingToday: [(show: Show, episode: Episode)] { WatchPlanner.nextUpAiringToday(from: shows) }
     private var thisWeek: [(show: Show, episode: Episode)] { WatchPlanner.nextUpThisWeek(from: shows) }
     private var comingSoon: [(show: Show, episode: Episode)] { WatchPlanner.nextUpComingSoon(from: shows) }
     private var dateTBA: [(show: Show, episode: Episode)] { WatchPlanner.nextUpDateTBA(from: shows) }
 
+    // MARK: - Movie sections
+
+    private var moviesInTheaters: [Movie] {
+        movies.filter { !$0.isArchived && !$0.isWatched && $0.releaseStatus == .released }
+    }
+
+    private var moviesComingSoon: [Movie] {
+        movies.filter { !$0.isArchived && !$0.isWatched && $0.releaseStatus == .comingSoon && $0.theatricalReleaseDate != .distantFuture }
+    }
+
+    private var moviesStreamingSoon: [Movie] {
+        movies.filter { !$0.isArchived && !$0.isWatched && $0.releaseStatus == .streaming }
+            .sorted { ($0.streamingReleaseDate ?? .distantFuture) < ($1.streamingReleaseDate ?? .distantFuture) }
+    }
+
+    // MARK: - Game sections
+
+    private var gamesToday: [SportGame] {
+        games.filter { !$0.isCompleted && Calendar.current.isDateInToday($0.gameDate) }
+    }
+
+    private var gamesThisWeek: [SportGame] {
+        let cal = Calendar.current
+        let now = Date.now
+        let weekEnd = cal.date(byAdding: .day, value: 7, to: cal.startOfDay(for: now))!
+        return games.filter {
+            !$0.isCompleted &&
+            $0.gameDate > now &&
+            !cal.isDateInToday($0.gameDate) &&
+            $0.gameDate <= weekEnd &&
+            $0.gameDate != .distantFuture
+        }
+    }
+
+    private var gamesUpcoming: [SportGame] {
+        let cal = Calendar.current
+        let now = Date.now
+        let weekEnd = cal.date(byAdding: .day, value: 7, to: cal.startOfDay(for: now))!
+        return Array(games.filter {
+            !$0.isCompleted && $0.gameDate > weekEnd && $0.gameDate != .distantFuture
+        }.prefix(20))
+    }
+
     private var hasUpcomingContent: Bool {
-        !airingToday.isEmpty || !thisWeek.isEmpty || !comingSoon.isEmpty || !dateTBA.isEmpty
+        !airingToday.isEmpty || !thisWeek.isEmpty || !comingSoon.isEmpty || !dateTBA.isEmpty ||
+        !moviesInTheaters.isEmpty || !moviesComingSoon.isEmpty || !moviesStreamingSoon.isEmpty ||
+        !gamesToday.isEmpty || !gamesThisWeek.isEmpty || !gamesUpcoming.isEmpty
     }
 
     var body: some View {
         NavigationStack {
             Group {
-                if activeShows.isEmpty {
-                    emptyLibraryState
-                } else if !hasUpcomingContent {
+                if !hasUpcomingContent {
                     noUpcomingView
                 } else {
                     list
@@ -35,26 +85,16 @@ struct NextUpView: View {
         }
     }
 
-    // MARK: - Empty library state
-
-    private var emptyLibraryState: some View {
-        ContentUnavailableView(
-            "No Shows Yet",
-            systemImage: "play.circle",
-            description: Text("Add shows from the Library tab to start tracking.")
-        )
-    }
-
-    // MARK: - No Upcoming Episodes
+    // MARK: - No Upcoming
 
     private var noUpcomingView: some View {
         ContentUnavailableView(
-            "No Upcoming Episodes",
+            "Nothing Upcoming",
             systemImage: "calendar",
-            description: Text("Nothing scheduled yet.\nCheck back when new episodes are announced.")
+            description: Text("Add shows, movies, and teams to see what's coming up.")
         )
         .refreshable {
-            await RefreshService.shared.refreshAllShows(modelContext: modelContext)
+            await refreshAll()
         }
     }
 
@@ -62,6 +102,7 @@ struct NextUpView: View {
 
     private var list: some View {
         List {
+            // --- TV ---
             if !airingToday.isEmpty {
                 Section {
                     ForEach(airingToday, id: \.episode.persistentModelID) { item in
@@ -113,12 +154,88 @@ struct NextUpView: View {
                     NextUpSectionHeader(title: "Date TBA", icon: "calendar.badge.clock", color: .secondary)
                 }
             }
+
+            // --- Games ---
+            if !gamesToday.isEmpty {
+                Section {
+                    ForEach(gamesToday) { game in
+                        NavigationLink(destination: TeamDetailView(team: game.team ?? SportTeam(name: "", sportsDBID: "", sport: "", league: ""))) {
+                            UpcomingGameRow(game: game)
+                        }
+                    }
+                } header: {
+                    NextUpSectionHeader(title: "Games Today", icon: "sportscourt.fill", color: .orange)
+                }
+            }
+
+            if !gamesThisWeek.isEmpty {
+                Section {
+                    ForEach(gamesThisWeek) { game in
+                        NavigationLink(destination: TeamDetailView(team: game.team ?? SportTeam(name: "", sportsDBID: "", sport: "", league: ""))) {
+                            UpcomingGameRow(game: game)
+                        }
+                    }
+                } header: {
+                    NextUpSectionHeader(title: "Games This Week", icon: "calendar", color: .blue)
+                }
+            }
+
+            if !gamesUpcoming.isEmpty {
+                Section {
+                    ForEach(gamesUpcoming) { game in
+                        NavigationLink(destination: TeamDetailView(team: game.team ?? SportTeam(name: "", sportsDBID: "", sport: "", league: ""))) {
+                            UpcomingGameRow(game: game)
+                        }
+                    }
+                } header: {
+                    NextUpSectionHeader(title: "Upcoming Games", icon: "clock", color: .secondary)
+                }
+            }
+
+            // --- Movies ---
+            if !moviesInTheaters.isEmpty {
+                Section {
+                    ForEach(moviesInTheaters) { movie in
+                        NavigationLink(destination: MovieDetailView(movie: movie)) {
+                            MovieCard(movie: movie)
+                        }
+                    }
+                } header: {
+                    NextUpSectionHeader(title: "In Theaters", icon: "film.fill", color: Color(red: 0.95, green: 0.35, blue: 0.35))
+                }
+            }
+
+            if !moviesComingSoon.isEmpty {
+                Section {
+                    ForEach(moviesComingSoon) { movie in
+                        NavigationLink(destination: MovieDetailView(movie: movie)) {
+                            MovieCard(movie: movie)
+                        }
+                    }
+                } header: {
+                    NextUpSectionHeader(title: "Coming to Theaters", icon: "ticket.fill", color: .secondary)
+                }
+            }
+
+            if !moviesStreamingSoon.isEmpty {
+                Section {
+                    ForEach(moviesStreamingSoon) { movie in
+                        NavigationLink(destination: MovieDetailView(movie: movie)) {
+                            MovieCard(movie: movie)
+                        }
+                    }
+                } header: {
+                    NextUpSectionHeader(title: "Now Streaming", icon: "play.circle.fill", color: .blue)
+                }
+            }
         }
         .listStyle(.plain)
         .refreshable {
-            await RefreshService.shared.refreshAllShows(modelContext: modelContext)
+            await refreshAll()
         }
     }
+
+    // MARK: - Helpers
 
     @ViewBuilder
     private func watchedButton(_ episode: Episode, _ show: Show) -> some View {
@@ -129,6 +246,14 @@ struct NextUpView: View {
             Label("Watched", systemImage: "checkmark")
         }
         .tint(.green)
+    }
+
+    private func refreshAll() async {
+        await withTaskGroup(of: Void.self) { group in
+            group.addTask { await RefreshService.shared.refreshAllShows(modelContext: modelContext) }
+            group.addTask { await RefreshService.shared.refreshAllMovies(modelContext: modelContext) }
+            group.addTask { await RefreshService.shared.refreshAllTeams(modelContext: modelContext) }
+        }
     }
 }
 
@@ -254,6 +379,186 @@ struct EpisodeCard: View {
     }
 }
 
+// MARK: - Movie Card
+
+struct MovieCard: View {
+    let movie: Movie
+
+    private var cal: Calendar { Calendar.current }
+
+    private var releaseDate: Date? {
+        switch movie.releaseStatus {
+        case .comingSoon, .released: return movie.theatricalReleaseDate == .distantFuture ? nil : movie.theatricalReleaseDate
+        case .streaming: return movie.streamingReleaseDate
+        default: return nil
+        }
+    }
+
+    private var daysUntil: Int? {
+        guard let date = releaseDate, date > .now else { return nil }
+        let today = cal.startOfDay(for: .now)
+        let d = cal.dateComponents([.day], from: today, to: cal.startOfDay(for: date)).day ?? 0
+        return d > 0 ? d : nil
+    }
+
+    var body: some View {
+        HStack(spacing: 14) {
+            AsyncImage(url: movie.posterImageURL.flatMap {
+                URL(string: $0.absoluteString.replacingOccurrences(of: "/w300", with: "/w92"))
+            }) { phase in
+                switch phase {
+                case .success(let image):
+                    image.resizable().aspectRatio(contentMode: .fill)
+                case .failure, .empty:
+                    Rectangle()
+                        .foregroundStyle(Color(.systemGray5))
+                        .overlay {
+                            Image(systemName: "film")
+                                .foregroundStyle(.tertiary)
+                        }
+                @unknown default:
+                    Rectangle().foregroundStyle(Color(.systemGray5))
+                }
+            }
+            .frame(width: 54, height: 81)
+            .clipShape(RoundedRectangle(cornerRadius: 8))
+
+            VStack(alignment: .leading, spacing: 5) {
+                Text(movie.title)
+                    .font(.headline)
+                    .lineLimit(1)
+
+                if let overview = movie.overview, !overview.isEmpty {
+                    Text(overview)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(2)
+                }
+
+                Spacer(minLength: 0)
+
+                HStack(spacing: 5) {
+                    if let date = releaseDate {
+                        Image(systemName: "calendar")
+                            .imageScale(.small)
+                            .foregroundStyle(.tertiary)
+                        Text(date, style: .date)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        if let days = daysUntil, days <= 14 {
+                            Text("in \(days)d")
+                                .font(.caption2)
+                                .fontWeight(.medium)
+                                .foregroundStyle(.white)
+                                .padding(.horizontal, 5)
+                                .padding(.vertical, 2)
+                                .background(Color.accentColor)
+                                .clipShape(Capsule())
+                        }
+                    } else if movie.releaseStatus == .released {
+                        Label("In Theaters Now", systemImage: "film.fill")
+                            .font(.caption)
+                            .foregroundStyle(Color(red: 0.95, green: 0.35, blue: 0.35))
+                    } else if movie.releaseStatus == .streaming {
+                        Label("Streaming Now", systemImage: "play.circle.fill")
+                            .font(.caption)
+                            .foregroundStyle(.blue)
+                    }
+                }
+            }
+            .padding(.vertical, 14)
+        }
+        .padding(.horizontal, 14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+// MARK: - Upcoming Game Row
+
+struct UpcomingGameRow: View {
+    let game: SportGame
+
+    private var cal: Calendar { Calendar.current }
+    private var isToday: Bool { game.gameDate != .distantFuture && cal.isDateInToday(game.gameDate) }
+
+    private var daysUntil: Int? {
+        guard game.gameDate != .distantFuture, game.gameDate > .now else { return nil }
+        let today = cal.startOfDay(for: .now)
+        let d = cal.dateComponents([.day], from: today, to: cal.startOfDay(for: game.gameDate)).day ?? 0
+        return d > 0 ? d : nil
+    }
+
+    var body: some View {
+        HStack(spacing: 12) {
+            AsyncImage(url: game.team?.badgeImageURL) { phase in
+                switch phase {
+                case .success(let image):
+                    image.resizable().aspectRatio(contentMode: .fit)
+                default:
+                    RoundedRectangle(cornerRadius: 6)
+                        .foregroundStyle(Color(.systemGray5))
+                        .overlay {
+                            Image(systemName: "sportscourt")
+                                .foregroundStyle(.tertiary)
+                                .imageScale(.small)
+                        }
+                }
+            }
+            .frame(width: 40, height: 40)
+            .clipShape(RoundedRectangle(cornerRadius: 6))
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(game.displayTitle)
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+                    .lineLimit(2)
+
+                HStack(spacing: 4) {
+                    if isToday {
+                        Label("Today · \(game.formattedGameTime)", systemImage: "star.fill")
+                            .font(.caption)
+                            .foregroundStyle(.orange)
+                    } else if game.gameDate != .distantFuture {
+                        Image(systemName: "calendar")
+                            .imageScale(.small)
+                            .foregroundStyle(.tertiary)
+                        Text(game.gameDate, style: .date)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Text("·")
+                            .font(.caption)
+                            .foregroundStyle(.tertiary)
+                        Text(game.formattedGameTime)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        if let days = daysUntil, days <= 7 {
+                            Text("in \(days)d")
+                                .font(.caption2)
+                                .fontWeight(.medium)
+                                .foregroundStyle(.white)
+                                .padding(.horizontal, 5)
+                                .padding(.vertical, 2)
+                                .background(Color.accentColor)
+                                .clipShape(Capsule())
+                        }
+                    } else {
+                        Text("TBA").font(.caption).foregroundStyle(.secondary)
+                    }
+                }
+
+                if let league = game.team?.league {
+                    Text(league)
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                }
+            }
+
+            Spacer()
+        }
+        .padding(.vertical, 4)
+    }
+}
+
 // MARK: - Episode Context Menu Items (reusable)
 
 struct EpisodeContextMenuItems: View {
@@ -285,7 +590,7 @@ struct EpisodeContextMenuItems: View {
 
 private var nextUpPreviewContainer: ModelContainer = {
     let config = ModelConfiguration(isStoredInMemoryOnly: true)
-    let container = try! ModelContainer(for: Show.self, Episode.self, configurations: config)
+    let container = try! ModelContainer(for: Show.self, Episode.self, Movie.self, SportTeam.self, SportGame.self, configurations: config)
     let ctx = container.mainContext
     let cal = Calendar.current
 
@@ -305,27 +610,21 @@ private var nextUpPreviewContainer: ModelContainer = {
     ep2.show = show2
     ctx.insert(ep2)
 
-    let show3 = Show(title: "White Lotus", platform: "Max", showStatus: "Returning Series")
-    ctx.insert(show3)
-    let ep3 = Episode(seasonNumber: 3, episodeNumber: 2, title: "Episode 2",
-                      airDate: cal.date(byAdding: .day, value: 5, to: .now)!)
-    ep3.show = show3
-    ctx.insert(ep3)
+    // Movie — coming soon
+    let movie = Movie(title: "Mission: Impossible 8",
+                      overview: "Ethan Hunt faces his most dangerous mission.",
+                      theatricalReleaseDate: cal.date(byAdding: .day, value: 5, to: .now)!)
+    ctx.insert(movie)
 
-    // Coming Soon
-    let show4 = Show(title: "Andor", platform: "Disney+", showStatus: "Returning Series")
-    ctx.insert(show4)
-    let ep4 = Episode(seasonNumber: 2, episodeNumber: 1, title: "Aftermath",
-                      airDate: cal.date(byAdding: .day, value: 18, to: .now)!)
-    ep4.show = show4
-    ctx.insert(ep4)
-
-    // TBA
-    let show5 = Show(title: "Succession", platform: "Max", showStatus: "Ended")
-    ctx.insert(show5)
-    let ep5 = Episode(seasonNumber: 5, episodeNumber: 1, title: "TBA", airDate: .distantFuture)
-    ep5.show = show5
-    ctx.insert(ep5)
+    // Sport team + game
+    let team = SportTeam(name: "Los Angeles Lakers", sportsDBID: "134880",
+                          sport: "Basketball", league: "NBA")
+    ctx.insert(team)
+    let game = SportGame(sportsDBEventID: "preview1", title: "LA Lakers vs Boston Celtics",
+                          homeTeam: "Los Angeles Lakers", awayTeam: "Boston Celtics",
+                          gameDate: cal.date(byAdding: .day, value: 2, to: .now)!)
+    game.team = team
+    ctx.insert(game)
 
     return container
 }()

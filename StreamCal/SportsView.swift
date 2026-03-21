@@ -9,7 +9,7 @@ struct SportsView: View {
     private var teams: [SportTeam]
 
     @State private var showingAddTeam = false
-    @State private var addedTeamName: String? = nil
+    @State private var toast: ToastMessage? = nil
 
     /// Sport display order and icon mapping
     private let sportOrder = ["NFL", "NBA", "MLB", "NHL", "Soccer", "Basketball",
@@ -39,12 +39,14 @@ struct SportsView: View {
                     ForEach(teamsBySport, id: \.sport) { group in
                         Section(group.sport) {
                             ForEach(group.teams) { team in
-                                NavigationLink(destination: TeamDetailView(team: team)) {
+                                NavigationLink(destination: TeamDetailView(team: team, onDeleted: { name in toast = .removed(name) })) {
                                     TeamRowView(team: team)
                                 }
                                 .swipeActions(edge: .trailing, allowsFullSwipe: true) {
                                     Button(role: .destructive) {
+                                        let name = team.name
                                         modelContext.delete(team)
+                                        toast = .removed(name)
                                     } label: {
                                         Label("Remove", systemImage: "trash")
                                     }
@@ -53,7 +55,7 @@ struct SportsView: View {
                         }
                     }
                 }
-                .listStyle(.plain)
+                .listStyle(.insetGrouped)
                 .refreshable {
                     await RefreshService.shared.refreshAllTeams(modelContext: modelContext)
                 }
@@ -67,21 +69,9 @@ struct SportsView: View {
             }
         }
         .sheet(isPresented: $showingAddTeam) {
-            AddTeamSheet(onAdded: { name in addedTeamName = name })
+            AddTeamSheet(onAdded: { name in toast = .added(name) })
         }
-        .overlay(alignment: .bottom) {
-            if let name = addedTeamName {
-                AddedToastView(showTitle: name)
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
-                    .onAppear {
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) {
-                            withAnimation(.easeOut(duration: 0.3)) { addedTeamName = nil }
-                        }
-                    }
-                    .padding(.bottom, 16)
-            }
-        }
-        .animation(.spring(duration: 0.4), value: addedTeamName)
+        .toast(message: toast) { toast = nil }
     }
 }
 
@@ -165,8 +155,42 @@ struct TeamRowView: View {
 
 struct GameRowView: View {
     let game: SportGame
+    var team: SportTeam? = nil
+
+    /// Badge URL for the home team (only available when the tracked team is playing at home)
+    private var homeBadgeURL: URL? {
+        guard let team, game.homeTeam == team.name else { return nil }
+        return team.badgeImageURL
+    }
 
     var body: some View {
+        HStack(spacing: 10) {
+            // Home team badge or placeholder
+            Group {
+                if let url = homeBadgeURL {
+                    AsyncImage(url: url) { phase in
+                        switch phase {
+                        case .success(let image):
+                            image.resizable().aspectRatio(contentMode: .fit)
+                        default:
+                            Image(systemName: "house.fill")
+                                .foregroundStyle(.tertiary)
+                                .imageScale(.small)
+                        }
+                    }
+                } else {
+                    RoundedRectangle(cornerRadius: 4)
+                        .foregroundStyle(Color(.systemGray5))
+                        .overlay {
+                            Image(systemName: game.homeTeam == (team?.name ?? "") ? "house.fill" : "house")
+                                .foregroundStyle(.tertiary)
+                                .imageScale(.small)
+                        }
+                }
+            }
+            .frame(width: 32, height: 32)
+            .clipShape(RoundedRectangle(cornerRadius: 4))
+
         VStack(alignment: .leading, spacing: 6) {
             Text(game.displayTitle)
                 .font(.subheadline)
@@ -221,7 +245,8 @@ struct GameRowView: View {
                     .font(.caption2)
                     .foregroundStyle(.tertiary)
             }
-        }
+        } // VStack
+        } // HStack
         .padding(.vertical, 2)
         .opacity(game.isCompleted ? 0.7 : 1)
     }

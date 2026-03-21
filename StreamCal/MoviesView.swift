@@ -9,7 +9,7 @@ struct MoviesView: View {
     private var movies: [Movie]
 
     @State private var showingAddMovie = false
-    @State private var addedMovieTitle: String? = nil
+    @State private var toast: ToastMessage? = nil
 
     private var inTheaters: [Movie] {
         movies.filter { !$0.isArchived && $0.releaseStatus == .released }
@@ -52,7 +52,7 @@ struct MoviesView: View {
                     movieSection("Announced", movies: announced)
                     movieSection("Watched", movies: watched)
                 }
-                .listStyle(.plain)
+                .listStyle(.insetGrouped)
                 .refreshable {
                     await RefreshService.shared.refreshAllMovies(modelContext: modelContext)
                 }
@@ -66,21 +66,9 @@ struct MoviesView: View {
             }
         }
         .sheet(isPresented: $showingAddMovie) {
-            AddMovieSheet(onAdded: { title in addedMovieTitle = title })
+            AddMovieSheet(onAdded: { title in toast = .added(title) })
         }
-        .overlay(alignment: .bottom) {
-            if let title = addedMovieTitle {
-                AddedToastView(showTitle: title)
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
-                    .onAppear {
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) {
-                            withAnimation(.easeOut(duration: 0.3)) { addedMovieTitle = nil }
-                        }
-                    }
-                    .padding(.bottom, 16)
-            }
-        }
-        .animation(.spring(duration: 0.4), value: addedMovieTitle)
+        .toast(message: toast) { toast = nil }
     }
 
     @ViewBuilder
@@ -88,12 +76,14 @@ struct MoviesView: View {
         if !movies.isEmpty {
             Section(title) {
                 ForEach(movies) { movie in
-                    NavigationLink(destination: MovieDetailView(movie: movie)) {
+                    NavigationLink(destination: MovieDetailView(movie: movie, onAction: { toast = $0 })) {
                         MovieRowView(movie: movie)
                     }
                     .swipeActions(edge: .trailing, allowsFullSwipe: true) {
                         Button(role: .destructive) {
+                            let title = movie.title
                             modelContext.delete(movie)
+                            toast = .removed(title)
                         } label: {
                             Label("Delete", systemImage: "trash")
                         }
@@ -107,6 +97,7 @@ struct MoviesView: View {
                                 if let tmdbID = movie.tmdbID {
                                     NotificationService.shared.cancelMovieNotification(tmdbID: tmdbID)
                                 }
+                                toast = .watched(movie.title)
                             } label: {
                                 Label("Watched", systemImage: "checkmark.circle")
                             }
@@ -116,6 +107,7 @@ struct MoviesView: View {
                                 movie.isWatched = false
                                 movie.watchedAt = nil
                                 movie.updatedAt = .now
+                                toast = .unwatched(movie.title)
                             } label: {
                                 Label("Unwatch", systemImage: "arrow.uturn.backward")
                             }

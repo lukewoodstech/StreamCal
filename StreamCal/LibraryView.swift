@@ -13,6 +13,7 @@ struct LibraryView: View {
 
     @State private var showingAddShow = false
     @State private var addedShowTitle: String? = nil
+    @State private var actionToast: ToastMessage? = nil
 
     var airingShows: [Show] {
         shows
@@ -55,15 +56,19 @@ struct LibraryView: View {
                                     }
                                     .swipeActions(edge: .trailing, allowsFullSwipe: true) {
                                         Button(role: .destructive) {
+                                            let title = show.title
                                             modelContext.delete(show)
+                                            actionToast = .removed(title)
                                         } label: {
                                             Label("Delete", systemImage: "trash")
                                         }
                                     }
                                     .swipeActions(edge: .leading) {
                                         Button {
+                                            let title = show.title
                                             show.isArchived = true
                                             show.updatedAt = .now
+                                            actionToast = .archived(title)
                                         } label: {
                                             Label("Archive", systemImage: "archivebox")
                                         }
@@ -81,15 +86,19 @@ struct LibraryView: View {
                                     }
                                     .swipeActions(edge: .trailing, allowsFullSwipe: true) {
                                         Button(role: .destructive) {
+                                            let title = show.title
                                             modelContext.delete(show)
+                                            actionToast = .removed(title)
                                         } label: {
                                             Label("Delete", systemImage: "trash")
                                         }
                                     }
                                     .swipeActions(edge: .leading) {
                                         Button {
+                                            let title = show.title
                                             show.isArchived = true
                                             show.updatedAt = .now
+                                            actionToast = .archived(title)
                                         } label: {
                                             Label("Archive", systemImage: "archivebox")
                                         }
@@ -107,15 +116,19 @@ struct LibraryView: View {
                                     }
                                     .swipeActions(edge: .trailing, allowsFullSwipe: true) {
                                         Button(role: .destructive) {
+                                            let title = show.title
                                             modelContext.delete(show)
+                                            actionToast = .removed(title)
                                         } label: {
                                             Label("Delete", systemImage: "trash")
                                         }
                                     }
                                     .swipeActions(edge: .leading) {
                                         Button {
+                                            let title = show.title
                                             show.isArchived = false
                                             show.updatedAt = .now
+                                            actionToast = .unarchived(title)
                                         } label: {
                                             Label("Unarchive", systemImage: "tray.and.arrow.up")
                                         }
@@ -144,41 +157,35 @@ struct LibraryView: View {
                     addedShowTitle = title
                 })
             }
-            .overlay(alignment: .bottom) {
-                if let title = addedShowTitle {
-                    AddedToastView(showTitle: title)
-                        .transition(.move(edge: .bottom).combined(with: .opacity))
-                        .onAppear {
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) {
-                                withAnimation(.easeOut(duration: 0.3)) {
-                                    addedShowTitle = nil
-                                }
-                            }
-                        }
-                        .padding(.bottom, 16)
-                }
+            .toast(message: addedShowTitle.map { .added($0) } ?? actionToast) {
+                addedShowTitle = nil
+                actionToast = nil
             }
-            .animation(.spring(duration: 0.4), value: addedShowTitle)
     }
 }
 
-// MARK: - Added Toast
+// MARK: - Toast (generic, used across the app)
 
-struct AddedToastView: View {
-    let showTitle: String
+struct ToastView: View {
+    let icon: String
+    let iconColor: Color
+    let title: String
+    var subtitle: String? = nil
 
     var body: some View {
         HStack(spacing: 10) {
-            Image(systemName: "checkmark.circle.fill")
-                .foregroundStyle(.green)
+            Image(systemName: icon)
+                .foregroundStyle(iconColor)
             VStack(alignment: .leading, spacing: 1) {
-                Text("Added to Library")
+                Text(title)
                     .font(.subheadline)
                     .fontWeight(.semibold)
-                Text(showTitle)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
+                if let subtitle {
+                    Text(subtitle)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
             }
             Spacer()
         }
@@ -187,6 +194,63 @@ struct AddedToastView: View {
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14))
         .shadow(color: .black.opacity(0.12), radius: 8, x: 0, y: 4)
         .padding(.horizontal, 20)
+    }
+}
+
+// MARK: - Added Toast (convenience wrapper)
+
+struct AddedToastView: View {
+    let showTitle: String
+    var body: some View {
+        ToastView(icon: "checkmark.circle.fill", iconColor: .green,
+                  title: "Added to Library", subtitle: showTitle)
+    }
+}
+
+// MARK: - Toast modifier (shows + auto-dismisses)
+
+extension View {
+    func toast(message: ToastMessage?, onDismiss: @escaping () -> Void) -> some View {
+        self.overlay(alignment: .top) {
+            if let msg = message {
+                ToastView(icon: msg.icon, iconColor: msg.color, title: msg.title, subtitle: msg.subtitle)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+                    .onAppear {
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) {
+                            withAnimation(.easeOut(duration: 0.3)) { onDismiss() }
+                        }
+                    }
+                    .padding(.top, 8)
+            }
+        }
+        .animation(.spring(duration: 0.4), value: message?.id)
+    }
+}
+
+struct ToastMessage: Equatable {
+    let id = UUID()
+    let icon: String
+    let color: Color
+    let title: String
+    var subtitle: String? = nil
+
+    static func added(_ name: String) -> ToastMessage {
+        ToastMessage(icon: "checkmark.circle.fill", color: .green, title: "Added to Library", subtitle: name)
+    }
+    static func removed(_ name: String) -> ToastMessage {
+        ToastMessage(icon: "trash.fill", color: .red, title: "Removed", subtitle: name)
+    }
+    static func watched(_ name: String) -> ToastMessage {
+        ToastMessage(icon: "checkmark.circle.fill", color: .green, title: "Marked as Watched", subtitle: name)
+    }
+    static func unwatched(_ name: String) -> ToastMessage {
+        ToastMessage(icon: "arrow.uturn.backward.circle.fill", color: .orange, title: "Marked as Unwatched", subtitle: name)
+    }
+    static func archived(_ name: String) -> ToastMessage {
+        ToastMessage(icon: "archivebox.fill", color: .orange, title: "Archived", subtitle: name)
+    }
+    static func unarchived(_ name: String) -> ToastMessage {
+        ToastMessage(icon: "tray.and.arrow.up.fill", color: .blue, title: "Unarchived", subtitle: name)
     }
 }
 

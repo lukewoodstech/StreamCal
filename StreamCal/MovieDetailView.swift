@@ -3,8 +3,10 @@ import SwiftData
 
 struct MovieDetailView: View {
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.dismiss) private var dismiss
 
     let movie: Movie
+    var onAction: ((ToastMessage) -> Void)? = nil
 
     var body: some View {
         List {
@@ -39,7 +41,10 @@ struct MovieDetailView: View {
                     }
                     Divider()
                     Button(role: .destructive) {
+                        let title = movie.title
                         modelContext.delete(movie)
+                        dismiss()
+                        onAction?(.removed(title))
                     } label: {
                         Label("Remove from Library", systemImage: "trash")
                     }
@@ -131,6 +136,7 @@ struct MovieDetailView: View {
                     movie.isWatched = false
                     movie.watchedAt = nil
                     movie.updatedAt = .now
+                    onAction?(.unwatched(movie.title))
                 } label: {
                     Label("Mark as Unwatched", systemImage: "arrow.uturn.backward.circle")
                 }
@@ -142,6 +148,7 @@ struct MovieDetailView: View {
                     if let tmdbID = movie.tmdbID {
                         NotificationService.shared.cancelMovieNotification(tmdbID: tmdbID)
                     }
+                    onAction?(.watched(movie.title))
                 } label: {
                     Label("Mark as Watched", systemImage: "checkmark.circle.fill")
                         .foregroundStyle(.green)

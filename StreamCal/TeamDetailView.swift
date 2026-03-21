@@ -3,8 +3,10 @@ import SwiftData
 
 struct TeamDetailView: View {
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.dismiss) private var dismiss
 
     let team: SportTeam
+    var onDeleted: ((String) -> Void)? = nil
 
     private var upcoming: [SportGame] {
         team.games
@@ -71,7 +73,7 @@ struct TeamDetailView: View {
             if !upcoming.isEmpty {
                 Section("Upcoming") {
                     ForEach(upcoming) { game in
-                        GameRowView(game: game)
+                        GameRowView(game: game, team: team)
                     }
                 }
             }
@@ -79,7 +81,7 @@ struct TeamDetailView: View {
             if !results.isEmpty {
                 Section("Results") {
                     ForEach(results) { game in
-                        GameRowView(game: game)
+                        GameRowView(game: game, team: team)
                     }
                 }
             }
@@ -110,7 +112,10 @@ struct TeamDetailView: View {
                     }
                     Divider()
                     Button(role: .destructive) {
+                        let name = team.name
                         modelContext.delete(team)
+                        dismiss()
+                        onDeleted?(name)
                     } label: {
                         Label("Remove Team", systemImage: "trash")
                     }
