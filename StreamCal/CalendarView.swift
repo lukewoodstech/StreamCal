@@ -23,10 +23,6 @@ struct CalendarView: View {
         return dict
     }
 
-    private var tbaEpisodes: [Episode] {
-        WatchPlanner.tbaEpisodes(from: allEpisodes)
-    }
-
     private var selectedEpisodes: [Episode] {
         episodesByDate[selectedDate] ?? []
     }
@@ -41,6 +37,12 @@ struct CalendarView: View {
                     today: today,
                     onMonthChanged: { newMonth in
                         selectedDate = nearestDate(in: newMonth, from: episodesByDate) ?? cal.startOfMonth(for: newMonth)
+                    },
+                    onGoToToday: {
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            displayedMonth = cal.startOfMonth(for: today)
+                            selectedDate = today
+                        }
                     }
                 )
                 .padding(.horizontal, 16)
@@ -84,33 +86,16 @@ struct CalendarView: View {
 
     private var dayPane: some View {
         Group {
-            if selectedEpisodes.isEmpty && tbaEpisodes.isEmpty {
+            if selectedEpisodes.isEmpty {
                 nothingScheduledView
             } else {
                 List {
                     Section {
-                        if selectedEpisodes.isEmpty {
-                            Text("Nothing scheduled")
-                                .foregroundStyle(.tertiary)
-                                .font(.subheadline)
-                                .frame(maxWidth: .infinity, alignment: .center)
-                                .padding(.vertical, 8)
-                                .listRowBackground(Color.clear)
-                        } else {
-                            ForEach(selectedEpisodes) { episode in
-                                CalendarEpisodeRow(episode: episode)
-                            }
+                        ForEach(selectedEpisodes) { episode in
+                            CalendarEpisodeRow(episode: episode)
                         }
                     } header: {
                         dayPaneHeader
-                    }
-
-                    if !tbaEpisodes.isEmpty {
-                        Section("Date TBA") {
-                            ForEach(tbaEpisodes) { episode in
-                                CalendarEpisodeRow(episode: episode)
-                            }
-                        }
                     }
                 }
                 .listStyle(.insetGrouped)
@@ -155,6 +140,7 @@ struct MonthGridView: View {
     let episodesByDate: [Date: [Episode]]
     let today: Date
     var onMonthChanged: ((Date) -> Void)? = nil
+    var onGoToToday: (() -> Void)? = nil
 
     private let cal = Calendar.current
     private let columns = Array(repeating: GridItem(.flexible(), spacing: 0), count: 7)
@@ -204,6 +190,14 @@ struct MonthGridView: View {
                 Text(monthTitle)
                     .font(.subheadline)
                     .fontWeight(.semibold)
+                if !cal.isDate(selectedDate, inSameDayAs: today) || displayedMonth != cal.startOfMonth(for: today) {
+                    Button("Today") { onGoToToday?() }
+                        .font(.caption)
+                        .fontWeight(.medium)
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                        .transition(.opacity.combined(with: .scale))
+                }
                 Spacer()
 
                 Button {
@@ -270,19 +264,11 @@ struct DayCell: View {
         return .primary
     }
 
-    /// Up to 3 dot colors: indigo for planned, then orange (today) or accent (future) per episode slot.
+    /// Up to 3 dot colors: orange (today) or accent (future) per episode slot.
     private var dotColors: [Color] {
         guard !episodes.isEmpty else { return [] }
-        let cal = Calendar.current
         let baseColor: Color = isToday ? .orange : .accentColor
-        let hasPlanned = episodes.contains { ep in
-            guard let d = ep.plannedDate else { return false }
-            return cal.isDate(d, inSameDayAs: date)
-        }
-        var colors: [Color] = hasPlanned ? [.indigo] : []
-        let remaining = min(3 - colors.count, episodes.count)
-        colors += Array(repeating: baseColor, count: remaining)
-        return Array(colors.prefix(3))
+        return Array(repeating: baseColor, count: min(3, episodes.count))
     }
 
     var body: some View {
@@ -331,20 +317,34 @@ struct CalendarEpisodeRow: View {
     private var cal: Calendar { Calendar.current }
     private var isToday: Bool { cal.isDateInToday(episode.airDate) }
 
-    private var planLabel: String? {
-        guard let d = episode.plannedDate else { return nil }
-        if cal.isDateInToday(d) { return "Tonight" }
-        if cal.isDateInTomorrow(d) { return "Tomorrow" }
-        return d.formatted(.dateTime.weekday(.abbreviated))
+    private var posterURL: URL? {
+        guard let s = show?.posterURL else { return nil }
+        return URL(string: s)
     }
 
     var body: some View {
         HStack(spacing: 12) {
-            // Accent strip: orange for today's drops, clear for upcoming
-            RoundedRectangle(cornerRadius: 2)
-                .frame(width: 3)
-                .foregroundStyle(isToday ? Color.orange : Color.clear)
-                .frame(height: 44)
+            // Poster thumbnail — same height as before, orange border for today's drops
+            CachedAsyncImage(url: posterURL) { phase in
+                switch phase {
+                case .success(let image):
+                    image.resizable().aspectRatio(contentMode: .fill)
+                default:
+                    RoundedRectangle(cornerRadius: 4)
+                        .foregroundStyle(Color(.systemGray5))
+                        .overlay {
+                            Image(systemName: "tv")
+                                .foregroundStyle(.tertiary)
+                                .imageScale(.small)
+                        }
+                }
+            }
+            .frame(width: 30, height: 44)
+            .clipShape(RoundedRectangle(cornerRadius: 4))
+            .overlay(
+                RoundedRectangle(cornerRadius: 4)
+                    .stroke(isToday ? Color.orange : Color.clear, lineWidth: 2)
+            )
 
             VStack(alignment: .leading, spacing: 3) {
                 HStack(alignment: .firstTextBaseline) {
@@ -364,17 +364,6 @@ struct CalendarEpisodeRow: View {
             }
 
             Spacer()
-
-            if let plan = planLabel {
-                Text(plan)
-                    .font(.caption2)
-                    .fontWeight(.semibold)
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 3)
-                    .background(Color.indigo)
-                    .clipShape(Capsule())
-            }
         }
         .padding(.vertical, 2)
         .contextMenu {
@@ -385,7 +374,6 @@ struct CalendarEpisodeRow: View {
         .swipeActions(edge: .leading) {
             Button {
                 episode.isWatched.toggle()
-                episode.plannedDate = nil
                 if let show {
                     Task { await NotificationService.shared.scheduleNotifications(for: show) }
                 }
@@ -396,17 +384,6 @@ struct CalendarEpisodeRow: View {
                 )
             }
             .tint(episode.isWatched ? .gray : .green)
-        }
-        .swipeActions(edge: .trailing) {
-            Button {
-                WatchPlanner.planTonight(episode)
-                if let show {
-                    Task { await NotificationService.shared.scheduleNotifications(for: show) }
-                }
-            } label: {
-                Label("Tonight", systemImage: "moon.stars.fill")
-            }
-            .tint(.indigo)
         }
     }
 }

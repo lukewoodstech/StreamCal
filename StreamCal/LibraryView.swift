@@ -255,7 +255,6 @@ struct ShowRowView: View {
     }
 
     private var progressIcon: String {
-        if progress.plannedToday != nil { return "moon.stars.fill" }
         if let upcoming = progress.nextUpcoming {
             return Calendar.current.isDateInToday(upcoming.airDate) ? "star.fill" : "calendar"
         }
@@ -264,7 +263,6 @@ struct ShowRowView: View {
     }
 
     private var progressColor: Color {
-        if progress.plannedToday != nil { return .indigo }
         if let upcoming = progress.nextUpcoming {
             return Calendar.current.isDateInToday(upcoming.airDate) ? .orange : .secondary
         }

@@ -41,7 +41,6 @@ struct ShowDetailView: View {
                         Button {
                             for ep in airedUnwatched {
                                 ep.isWatched = true
-                                ep.plannedDate = nil
                             }
                             Task {
                                 await NotificationService.shared.scheduleNotifications(for: show)
@@ -174,7 +173,6 @@ struct ShowDetailView: View {
                         .swipeActions(edge: .leading) {
                             Button {
                                 episode.isWatched.toggle()
-                                if episode.isWatched { episode.plannedDate = nil }
                                 let capturedShow = show
                                 Task {
                                     await NotificationService.shared.scheduleNotifications(for: capturedShow)
@@ -232,15 +230,6 @@ struct EpisodeRowView: View {
                 if episode.isWatched {
                     Image(systemName: "checkmark.circle.fill")
                         .foregroundStyle(.green)
-                } else if episode.isPlannedToday {
-                    Label("Tonight", systemImage: "moon.stars.fill")
-                        .font(.caption2)
-                        .fontWeight(.semibold)
-                        .foregroundStyle(.indigo)
-                } else if let planned = episode.plannedDate {
-                    Text(planned, format: .dateTime.weekday(.abbreviated))
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
                 }
             }
         }

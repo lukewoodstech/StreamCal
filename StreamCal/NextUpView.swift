@@ -69,9 +69,6 @@ struct NextUpView: View {
                             .swipeActions(edge: .leading) {
                                 watchedButton(item.episode, item.show)
                             }
-                            .swipeActions(edge: .trailing) {
-                                planTonightButton(item.episode, item.show)
-                            }
                     }
                 } header: {
                     NextUpSectionHeader(title: "Airing Today", icon: "star.fill", color: .orange)
@@ -85,9 +82,6 @@ struct NextUpView: View {
                             .swipeActions(edge: .leading) {
                                 watchedButton(item.episode, item.show)
                             }
-                            .swipeActions(edge: .trailing) {
-                                planTonightButton(item.episode, item.show)
-                            }
                     }
                 } header: {
                     NextUpSectionHeader(title: "This Week", icon: "calendar", color: .blue)
@@ -100,9 +94,6 @@ struct NextUpView: View {
                         EpisodeCard(show: item.show, episode: item.episode)
                             .swipeActions(edge: .leading) {
                                 watchedButton(item.episode, item.show)
-                            }
-                            .swipeActions(edge: .trailing) {
-                                planTonightButton(item.episode, item.show)
                             }
                     }
                 } header: {
@@ -133,23 +124,11 @@ struct NextUpView: View {
     private func watchedButton(_ episode: Episode, _ show: Show) -> some View {
         Button {
             episode.isWatched = true
-            episode.plannedDate = nil
             Task { await NotificationService.shared.scheduleNotifications(for: show) }
         } label: {
             Label("Watched", systemImage: "checkmark")
         }
         .tint(.green)
-    }
-
-    @ViewBuilder
-    private func planTonightButton(_ episode: Episode, _ show: Show) -> some View {
-        Button {
-            WatchPlanner.planTonight(episode)
-            Task { await NotificationService.shared.scheduleNotifications(for: show) }
-        } label: {
-            Label("Tonight", systemImage: "moon.stars.fill")
-        }
-        .tint(.indigo)
     }
 }
 
@@ -190,7 +169,6 @@ struct EpisodeCard: View {
 
     private var isTBA: Bool { episode.airDate == .distantFuture }
     private var isToday: Bool { cal.isDateInToday(episode.airDate) }
-    private var isPlannedToday: Bool { episode.isPlannedToday }
 
     private var daysUntil: Int {
         let today = cal.startOfDay(for: .now)
@@ -244,12 +222,7 @@ struct EpisodeCard: View {
 
     @ViewBuilder
     private var statusBadge: some View {
-        if isPlannedToday {
-            Label("Planned tonight", systemImage: "moon.stars.fill")
-                .font(.caption)
-                .fontWeight(.semibold)
-                .foregroundStyle(.indigo)
-        } else if isToday {
+        if isToday {
             Label("New today", systemImage: "star.fill")
                 .font(.caption)
                 .fontWeight(.semibold)
@@ -291,45 +264,12 @@ struct EpisodeContextMenuItems: View {
         Group {
             Button {
                 episode.isWatched.toggle()
-                if episode.isWatched { episode.plannedDate = nil }
                 Task { await NotificationService.shared.scheduleNotifications(for: show) }
             } label: {
                 Label(
                     episode.isWatched ? "Mark Unwatched" : "Mark Watched",
                     systemImage: episode.isWatched ? "eye.slash" : "checkmark.circle"
                 )
-            }
-
-            Divider()
-
-            Button {
-                WatchPlanner.planTonight(episode)
-                Task { await NotificationService.shared.scheduleNotifications(for: show) }
-            } label: {
-                Label("Watch Tonight", systemImage: "moon.stars")
-            }
-
-            Button {
-                WatchPlanner.planTomorrow(episode)
-                Task { await NotificationService.shared.scheduleNotifications(for: show) }
-            } label: {
-                Label("Watch Tomorrow", systemImage: "sunrise")
-            }
-
-            Button {
-                WatchPlanner.planThisWeekend(episode)
-                Task { await NotificationService.shared.scheduleNotifications(for: show) }
-            } label: {
-                Label("Watch This Weekend", systemImage: "calendar.badge.clock")
-            }
-
-            if episode.plannedDate != nil {
-                Button(role: .destructive) {
-                    WatchPlanner.clearPlan(for: episode)
-                    Task { await NotificationService.shared.scheduleNotifications(for: show) }
-                } label: {
-                    Label("Clear Plan", systemImage: "xmark.circle")
-                }
             }
         }
     }

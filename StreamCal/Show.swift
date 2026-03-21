@@ -117,23 +117,6 @@ final class Show: Identifiable {
         !episodes.isEmpty && episodes.allSatisfy { $0.isWatched } && nextUpcomingEpisode == nil
     }
 
-    /// Any episode planned for today across this show.
-    var plannedTodayEpisode: Episode? {
-        episodes.first { $0.isPlannedToday && !$0.isWatched }
-    }
-
-    var nextEpisodeDateText: String? {
-        guard let ep = nextToWatch else { return nil }
-        if ep.isPlannedToday { return "Planned tonight" }
-        if ep.airDate == .distantFuture { return "TBA" }
-        let today = Calendar.current.startOfDay(for: .now)
-        if ep.airDate <= today {
-            let count = backlogCount
-            return count > 1 ? "Backlog: \(count) eps" : "Available now"
-        }
-        return ep.airDate.formatted(date: .abbreviated, time: .omitted)
-    }
-
     var sortedEpisodes: [Episode] {
         episodes.sorted {
             if $0.seasonNumber != $1.seasonNumber { return $0.seasonNumber < $1.seasonNumber }
@@ -151,9 +134,6 @@ final class Episode {
     var isWatched: Bool
     var createdAt: Date
 
-    /// User-set planned watch date. nil = not planned.
-    var plannedDate: Date?
-
     var show: Show?
 
     init(
@@ -162,8 +142,7 @@ final class Episode {
         title: String = "",
         airDate: Date = .now,
         isWatched: Bool = false,
-        createdAt: Date = .now,
-        plannedDate: Date? = nil
+        createdAt: Date = .now
     ) {
         self.seasonNumber = seasonNumber
         self.episodeNumber = episodeNumber
@@ -171,7 +150,6 @@ final class Episode {
         self.airDate = airDate
         self.isWatched = isWatched
         self.createdAt = createdAt
-        self.plannedDate = plannedDate
     }
 
     var displayTitle: String {
@@ -179,9 +157,4 @@ final class Episode {
         return title.isEmpty ? code : "\(code) — \(title)"
     }
 
-    /// True if this episode is planned for today.
-    var isPlannedToday: Bool {
-        guard let d = plannedDate else { return false }
-        return Calendar.current.isDateInToday(d)
-    }
 }

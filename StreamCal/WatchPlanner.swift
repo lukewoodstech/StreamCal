@@ -17,9 +17,6 @@ struct ShowProgress {
     // All unwatched aired episodes in order
     var backlog: [Episode] { show.backlogEpisodes }
 
-    // Episode explicitly planned for today
-    var plannedToday: Episode? { show.plannedTodayEpisode }
-
     var backlogCount: Int { show.backlogCount }
     var hasBacklog: Bool { show.hasWatchBacklog }
     var isFullyCaughtUp: Bool { show.isFullyCaughtUp }
@@ -67,41 +64,6 @@ struct ShowProgress {
 @MainActor
 final class WatchPlanner {
 
-    // MARK: - Tonight's Plan
-
-    /// Episodes explicitly planned for today, unwatched, sorted by season/ep.
-    static func tonightsPlan(from shows: [Show]) -> [(show: Show, episode: Episode)] {
-        shows
-            .filter { !$0.isArchived }
-            .compactMap { show -> (Show, Episode)? in
-                guard let ep = show.plannedTodayEpisode else { return nil }
-                return (show, ep)
-            }
-            .sorted { lhs, rhs in
-                if lhs.0.title != rhs.0.title { return lhs.0.title < rhs.0.title }
-                if lhs.1.seasonNumber != rhs.1.seasonNumber { return lhs.1.seasonNumber < rhs.1.seasonNumber }
-                return lhs.1.episodeNumber < rhs.1.episodeNumber
-            }
-    }
-
-    // MARK: - Continue Watching (backlog — next unwatched aired episode per show)
-
-    /// One entry per show: the next unwatched aired episode.
-    /// Excludes shows that are planned for today (they're already in tonightsPlan).
-    static func continueWatching(from shows: [Show]) -> [(show: Show, episode: Episode)] {
-        return shows
-            .filter { !$0.isArchived }
-            .compactMap { show -> (Show, Episode)? in
-                // Skip shows already covered by tonight's plan
-                guard show.plannedTodayEpisode == nil else { return nil }
-                guard let ep = show.backlogEpisodes.first else { return nil }
-                // Exclude today's airings — those go in "New Episodes Today"
-                guard !Calendar.current.isDateInToday(ep.airDate) else { return nil }
-                return (show, ep)
-            }
-            .sorted { $0.show.title < $1.show.title }
-    }
-
     // MARK: - New Episodes Today
 
     /// Shows releasing their next unwatched episode today.
@@ -114,35 +76,6 @@ final class WatchPlanner {
                 return (show, ep)
             }
             .sorted { $0.show.title < $1.show.title }
-    }
-
-    // MARK: - Up Next (all future episodes, exclusive of today)
-
-    /// One entry per show: the next episode airing after today.
-    /// Excludes today's episodes (those are in newEpisodesToday) and
-    /// excludes shows already covered by tonight's plan.
-    /// TBA episodes are included but sorted to the end.
-    static func upNext(from shows: [Show]) -> [(show: Show, episode: Episode)] {
-        let cal = Calendar.current
-        let today = cal.startOfDay(for: .now)
-
-        return shows
-            .filter { !$0.isArchived }
-            .compactMap { show -> (Show, Episode)? in
-                guard show.plannedTodayEpisode == nil else { return nil }
-                guard let ep = show.nextUpcomingEpisode else { return nil }
-                guard !cal.isDateInToday(ep.airDate) else { return nil }
-                guard ep.airDate > today || ep.airDate == .distantFuture else { return nil }
-                return (show, ep)
-            }
-            .sorted { lhs, rhs in
-                let lTBA = lhs.episode.airDate == .distantFuture
-                let rTBA = rhs.episode.airDate == .distantFuture
-                if lTBA && rTBA { return lhs.show.title < rhs.show.title }
-                if lTBA { return false }
-                if rTBA { return true }
-                return lhs.episode.airDate < rhs.episode.airDate
-            }
     }
 
     // MARK: - All Caught Up Shows
@@ -270,23 +203,6 @@ final class WatchPlanner {
             .sorted { $0.date < $1.date }
     }
 
-    /// Returns unwatched TBA episodes from non-archived shows — shown separately
-    /// in the calendar so future episodes aren't silently hidden.
-    static func tbaEpisodes(from episodes: [Episode]) -> [Episode] {
-        episodes.filter {
-            $0.airDate == .distantFuture &&
-            !$0.isWatched &&
-            $0.show?.isArchived != true
-        }
-        .sorted {
-            let lhsShow = $0.show?.title ?? ""
-            let rhsShow = $1.show?.title ?? ""
-            if lhsShow != rhsShow { return lhsShow < rhsShow }
-            if $0.seasonNumber != $1.seasonNumber { return $0.seasonNumber < $1.seasonNumber }
-            return $0.episodeNumber < $1.episodeNumber
-        }
-    }
-
     // MARK: - Progress summaries
 
     static func progress(for show: Show) -> ShowProgress {
@@ -297,35 +213,4 @@ final class WatchPlanner {
         shows.filter { !$0.isArchived }.map { ShowProgress(show: $0) }
     }
 
-    // MARK: - Planning helpers
-
-    static func planEpisode(_ episode: Episode, for date: Date) {
-        episode.plannedDate = Calendar.current.startOfDay(for: date)
-    }
-
-    static func clearPlan(for episode: Episode) {
-        episode.plannedDate = nil
-    }
-
-    static func planTonight(_ episode: Episode) {
-        planEpisode(episode, for: .now)
-    }
-
-    static func planTomorrow(_ episode: Episode) {
-        let tomorrow = Calendar.current.date(byAdding: .day, value: 1, to: .now) ?? .now
-        planEpisode(episode, for: tomorrow)
-    }
-
-    static func planThisWeekend(_ episode: Episode) {
-        let cal = Calendar.current
-        let today = cal.startOfDay(for: .now)
-        let weekday = cal.component(.weekday, from: today)
-        // Saturday = 7, Sunday = 1
-        let daysUntilSaturday: Int
-        if weekday == 7 { daysUntilSaturday = 0 }
-        else if weekday == 1 { daysUntilSaturday = 6 }
-        else { daysUntilSaturday = 7 - weekday }
-        let saturday = cal.date(byAdding: .day, value: daysUntilSaturday, to: today) ?? today
-        planEpisode(episode, for: saturday)
-    }
 }

@@ -41,26 +41,13 @@ actor NotificationService {
 
         let cal = Calendar.current
         let today = cal.startOfDay(for: .now)
-        guard let tomorrow = cal.date(byAdding: .day, value: 1, to: today) else { return }
 
-        // Air-date and advance notifications for future unwatched episodes
+        // Air-date notifications for future unwatched episodes
         let futureEpisodes = show.episodes.filter {
             !$0.isWatched && $0.airDate > today && $0.airDate < Date.distantFuture
         }
         for episode in futureEpisodes {
             await scheduleAirDateNotification(for: episode, showTitle: show.title)
-            // Advance reminder: fire the evening before, only if episode airs tomorrow or later
-            if advanceReminderEnabled && episode.airDate >= tomorrow {
-                await scheduleAdvanceNotification(for: episode, showTitle: show.title)
-            }
-        }
-
-        // Evening reminder for episodes planned for tonight
-        let plannedTonight = show.episodes.filter {
-            !$0.isWatched && $0.isPlannedToday
-        }
-        for episode in plannedTonight {
-            await schedulePlanNotification(for: episode, showTitle: show.title)
         }
     }
 
@@ -78,10 +65,8 @@ actor NotificationService {
     // MARK: - Cancel
 
     func cancelNotifications(for show: Show) async {
-        let ids = show.episodes.flatMap { ep in
-            [notificationID(for: ep, suffix: "air"),
-             notificationID(for: ep, suffix: "plan"),
-             notificationID(for: ep, suffix: "advance")]
+        let ids = show.episodes.map { ep in
+            notificationID(for: ep, suffix: "air")
         }
         center.removePendingNotificationRequests(withIdentifiers: ids)
     }
@@ -91,20 +76,6 @@ actor NotificationService {
     private var airReminderHour: Int {
         let stored = UserDefaults.standard.object(forKey: "airReminderHour")
         return (stored as? Int) ?? 9
-    }
-
-    private var planReminderHour: Int {
-        let stored = UserDefaults.standard.object(forKey: "planReminderHour")
-        return (stored as? Int) ?? 20
-    }
-
-    private var advanceReminderEnabled: Bool {
-        UserDefaults.standard.bool(forKey: "advanceReminderEnabled")
-    }
-
-    private var advanceReminderHour: Int {
-        let stored = UserDefaults.standard.object(forKey: "advanceReminderHour")
-        return (stored as? Int) ?? 20
     }
 
     private var weeklySummaryEnabled: Bool {
@@ -128,44 +99,6 @@ actor NotificationService {
 
         var dateComponents = Calendar.current.dateComponents([.year, .month, .day], from: episode.airDate)
         dateComponents.hour = airReminderHour
-        dateComponents.minute = 0
-
-        let trigger = UNCalendarNotificationTrigger(dateMatching: dateComponents, repeats: false)
-        let request = UNNotificationRequest(identifier: id, content: content, trigger: trigger)
-
-        try? await center.add(request)
-    }
-
-    private func schedulePlanNotification(for episode: Episode, showTitle: String) async {
-        let id = notificationID(for: episode, suffix: "plan")
-
-        let content = UNMutableNotificationContent()
-        content.title = "Tonight: \(showTitle)"
-        content.body = "You planned to watch \(episode.displayTitle) tonight."
-        content.sound = .default
-
-        var dateComponents = Calendar.current.dateComponents([.year, .month, .day], from: .now)
-        dateComponents.hour = planReminderHour
-        dateComponents.minute = 0
-
-        let trigger = UNCalendarNotificationTrigger(dateMatching: dateComponents, repeats: false)
-        let request = UNNotificationRequest(identifier: id, content: content, trigger: trigger)
-
-        try? await center.add(request)
-    }
-
-    private func scheduleAdvanceNotification(for episode: Episode, showTitle: String) async {
-        let id = notificationID(for: episode, suffix: "advance")
-
-        let content = UNMutableNotificationContent()
-        content.title = "Tomorrow: \(showTitle)"
-        content.body = advanceBody(episode)
-        content.sound = .default
-
-        // Fire the evening before the air date
-        guard let dayBefore = Calendar.current.date(byAdding: .day, value: -1, to: episode.airDate) else { return }
-        var dateComponents = Calendar.current.dateComponents([.year, .month, .day], from: dayBefore)
-        dateComponents.hour = advanceReminderHour
         dateComponents.minute = 0
 
         let trigger = UNCalendarNotificationTrigger(dateMatching: dateComponents, repeats: false)
@@ -241,14 +174,6 @@ actor NotificationService {
         return "streamcal-\(showTitle)-s\(episode.seasonNumber)e\(episode.episodeNumber)-\(suffix)"
             .lowercased()
             .replacingOccurrences(of: " ", with: "-")
-    }
-
-    private func advanceBody(_ episode: Episode) -> String {
-        let code = "S\(String(format: "%02d", episode.seasonNumber))E\(String(format: "%02d", episode.episodeNumber))"
-        if episode.title.isEmpty {
-            return "\(code) drops tomorrow."
-        }
-        return "\(code) \u{2014} \(episode.title) drops tomorrow."
     }
 
     private func episodeBody(_ episode: Episode) -> String {

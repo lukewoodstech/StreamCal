@@ -14,14 +14,11 @@ struct SettingsView: View {
     @State private var notificationStatus: UNAuthorizationStatus = .notDetermined
 
     // Notification time picker modal
-    private enum TimeSlot { case air, plan, advance, weekly }
+    private enum TimeSlot { case air, weekly }
     @State private var editingSlot: TimeSlot? = nil
     @State private var pickerDate: Date = .now
 
     @AppStorage("airReminderHour") private var airReminderHour: Int = 9
-    @AppStorage("planReminderHour") private var planReminderHour: Int = 20
-    @AppStorage("advanceReminderEnabled") private var advanceReminderEnabled: Bool = true
-    @AppStorage("advanceReminderHour") private var advanceReminderHour: Int = 20
     @AppStorage("weeklySummaryEnabled") private var weeklySummaryEnabled: Bool = true
     @AppStorage("weeklySummaryHour") private var weeklySummaryHour: Int = 20
 
@@ -52,21 +49,6 @@ struct SettingsView: View {
                         timeRow(label: "New episode reminder", hour: airReminderHour) {
                             pickerDate = dateFromHour(airReminderHour)
                             editingSlot = .air
-                        }
-
-                        timeRow(label: "Tonight's plan reminder", hour: planReminderHour) {
-                            pickerDate = dateFromHour(planReminderHour)
-                            editingSlot = .plan
-                        }
-
-                        Toggle("Day-before reminder", isOn: $advanceReminderEnabled)
-                            .onChange(of: advanceReminderEnabled) { _, _ in rescheduleNotifications() }
-
-                        if advanceReminderEnabled {
-                            timeRow(label: "Day-before reminder time", hour: advanceReminderHour) {
-                                pickerDate = dateFromHour(advanceReminderHour)
-                                editingSlot = .advance
-                            }
                         }
 
                         Toggle("Weekly summary", isOn: $weeklySummaryEnabled)
@@ -178,8 +160,6 @@ struct SettingsView: View {
                                 let hour = Calendar.current.component(.hour, from: pickerDate)
                                 switch slot {
                                 case .air: airReminderHour = hour
-                                case .plan: planReminderHour = hour
-                                case .advance: advanceReminderHour = hour
                                 case .weekly: weeklySummaryHour = hour
                                 }
                                 rescheduleNotifications()
@@ -246,8 +226,6 @@ struct SettingsView: View {
     private func slotTitle(_ slot: TimeSlot) -> String {
         switch slot {
         case .air: return "New Episode Reminder"
-        case .plan: return "Tonight's Plan Reminder"
-        case .advance: return "Day-Before Reminder"
         case .weekly: return "Weekly Summary"
         }
     }
