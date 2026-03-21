@@ -91,25 +91,25 @@ struct TeamRowView: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            AsyncImage(url: team.badgeImageURL) { phase in
+            CachedAsyncImage(url: team.badgeImageURL) { phase in
                 switch phase {
                 case .success(let image):
                     image.resizable().aspectRatio(contentMode: .fit)
                 case .failure, .empty:
-                    RoundedRectangle(cornerRadius: 6)
-                        .foregroundStyle(Color(.systemGray5))
+                    RoundedRectangle(cornerRadius: DS.Radius.sm)
+                        .foregroundStyle(DS.Color.imagePlaceholder)
                         .overlay {
                             Image(systemName: "sportscourt")
                                 .foregroundStyle(.tertiary)
                                 .imageScale(.small)
                         }
                 @unknown default:
-                    RoundedRectangle(cornerRadius: 6)
-                        .foregroundStyle(Color(.systemGray5))
+                    RoundedRectangle(cornerRadius: DS.Radius.sm)
+                        .foregroundStyle(DS.Color.imagePlaceholder)
                 }
             }
             .frame(width: 44, height: 44)
-            .clipShape(RoundedRectangle(cornerRadius: 6))
+            .clipShape(RoundedRectangle(cornerRadius: DS.Radius.sm))
 
             VStack(alignment: .leading, spacing: 4) {
                 HStack(alignment: .firstTextBaseline) {
@@ -117,13 +117,7 @@ struct TeamRowView: View {
                         .font(.headline)
                         .lineLimit(1)
                     Spacer()
-                    Text(team.league)
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(Color(.systemGray5))
-                        .clipShape(Capsule())
+                    Text(team.league).statusBadge(color: .secondary)
                 }
 
                 if let game = nextGame {
@@ -168,7 +162,7 @@ struct GameRowView: View {
             // Home team badge or placeholder
             Group {
                 if let url = homeBadgeURL {
-                    AsyncImage(url: url) { phase in
+                    CachedAsyncImage(url: url) { phase in
                         switch phase {
                         case .success(let image):
                             image.resizable().aspectRatio(contentMode: .fit)
@@ -179,8 +173,8 @@ struct GameRowView: View {
                         }
                     }
                 } else {
-                    RoundedRectangle(cornerRadius: 4)
-                        .foregroundStyle(Color(.systemGray5))
+                    RoundedRectangle(cornerRadius: DS.Radius.xs)
+                        .foregroundStyle(DS.Color.imagePlaceholder)
                         .overlay {
                             Image(systemName: game.homeTeam == (team?.name ?? "") ? "house.fill" : "house")
                                 .foregroundStyle(.tertiary)
@@ -189,7 +183,7 @@ struct GameRowView: View {
                 }
             }
             .frame(width: 32, height: 32)
-            .clipShape(RoundedRectangle(cornerRadius: 4))
+            .clipShape(RoundedRectangle(cornerRadius: DS.Radius.xs))
 
         VStack(alignment: .leading, spacing: 6) {
             Text(game.displayTitle)

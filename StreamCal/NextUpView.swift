@@ -82,6 +82,7 @@ struct NextUpView: View {
                 }
             }
             .navigationTitle("Next Up")
+            .navigationBarTitleDisplayMode(.large)
         }
     }
 
@@ -201,7 +202,7 @@ struct NextUpView: View {
                         }
                     }
                 } header: {
-                    NextUpSectionHeader(title: "In Theaters", icon: "film.fill", color: Color(red: 0.95, green: 0.35, blue: 0.35))
+                    NextUpSectionHeader(title: "In Theaters", icon: "film.fill", color: DS.Color.movieTheaterRed)
                 }
             }
 
@@ -403,7 +404,7 @@ struct MovieCard: View {
 
     var body: some View {
         HStack(spacing: 14) {
-            AsyncImage(url: movie.posterImageURL.flatMap {
+            CachedAsyncImage(url: movie.posterImageURL.flatMap {
                 URL(string: $0.absoluteString.replacingOccurrences(of: "/w300", with: "/w92"))
             }) { phase in
                 switch phase {
@@ -411,17 +412,17 @@ struct MovieCard: View {
                     image.resizable().aspectRatio(contentMode: .fill)
                 case .failure, .empty:
                     Rectangle()
-                        .foregroundStyle(Color(.systemGray5))
+                        .foregroundStyle(DS.Color.imagePlaceholder)
                         .overlay {
                             Image(systemName: "film")
                                 .foregroundStyle(.tertiary)
                         }
                 @unknown default:
-                    Rectangle().foregroundStyle(Color(.systemGray5))
+                    Rectangle().foregroundStyle(DS.Color.imagePlaceholder)
                 }
             }
             .frame(width: 54, height: 81)
-            .clipShape(RoundedRectangle(cornerRadius: 8))
+            .clipShape(RoundedRectangle(cornerRadius: DS.Radius.md))
 
             VStack(alignment: .leading, spacing: 5) {
                 Text(movie.title)
@@ -458,7 +459,7 @@ struct MovieCard: View {
                     } else if movie.releaseStatus == .released {
                         Label("In Theaters Now", systemImage: "film.fill")
                             .font(.caption)
-                            .foregroundStyle(Color(red: 0.95, green: 0.35, blue: 0.35))
+                            .foregroundStyle(DS.Color.movieTheaterRed)
                     } else if movie.releaseStatus == .streaming {
                         Label("Streaming Now", systemImage: "play.circle.fill")
                             .font(.caption)
@@ -490,13 +491,13 @@ struct UpcomingGameRow: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            AsyncImage(url: game.team?.badgeImageURL) { phase in
+            CachedAsyncImage(url: game.team?.badgeImageURL) { phase in
                 switch phase {
                 case .success(let image):
                     image.resizable().aspectRatio(contentMode: .fit)
                 default:
-                    RoundedRectangle(cornerRadius: 6)
-                        .foregroundStyle(Color(.systemGray5))
+                    RoundedRectangle(cornerRadius: DS.Radius.sm)
+                        .foregroundStyle(DS.Color.imagePlaceholder)
                         .overlay {
                             Image(systemName: "sportscourt")
                                 .foregroundStyle(.tertiary)
@@ -505,7 +506,7 @@ struct UpcomingGameRow: View {
                 }
             }
             .frame(width: 40, height: 40)
-            .clipShape(RoundedRectangle(cornerRadius: 6))
+            .clipShape(RoundedRectangle(cornerRadius: DS.Radius.sm))
 
             VStack(alignment: .leading, spacing: 3) {
                 Text(game.displayTitle)

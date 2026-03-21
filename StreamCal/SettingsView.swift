@@ -177,6 +177,7 @@ struct SettingsView: View {
                 }
             }
             .navigationTitle("Settings")
+            .navigationBarTitleDisplayMode(.large)
             .task {
                 notificationStatus = await NotificationService.shared.authorizationStatus()
             }

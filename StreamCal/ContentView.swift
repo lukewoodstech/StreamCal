@@ -49,6 +49,7 @@ struct LibraryContainerView: View {
                 }
             }
             .navigationTitle("Library")
+            .navigationBarTitleDisplayMode(.large)
             .toolbar {
                 ToolbarItem(placement: .principal) {
                     Picker("Content Type", selection: $contentType) {

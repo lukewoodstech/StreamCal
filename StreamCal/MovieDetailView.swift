@@ -61,26 +61,26 @@ struct MovieDetailView: View {
         Section {
             HStack {
                 Spacer()
-                AsyncImage(url: movie.posterImageURL) { phase in
+                CachedAsyncImage(url: movie.posterImageURL) { phase in
                     switch phase {
                     case .success(let image):
                         image.resizable().aspectRatio(contentMode: .fit)
                     case .failure, .empty:
-                        RoundedRectangle(cornerRadius: 12)
-                            .foregroundStyle(Color(.systemGray5))
+                        RoundedRectangle(cornerRadius: DS.Radius.lg)
+                            .foregroundStyle(DS.Color.imagePlaceholder)
                             .overlay {
                                 Image(systemName: "film")
                                     .font(.largeTitle)
                                     .foregroundStyle(.tertiary)
                             }
                     @unknown default:
-                        RoundedRectangle(cornerRadius: 12)
-                            .foregroundStyle(Color(.systemGray5))
+                        RoundedRectangle(cornerRadius: DS.Radius.lg)
+                            .foregroundStyle(DS.Color.imagePlaceholder)
                     }
                 }
                 .frame(width: 160, height: 240)
-                .clipShape(RoundedRectangle(cornerRadius: 12))
-                .shadow(color: .black.opacity(0.2), radius: 8, x: 0, y: 4)
+                .clipShape(RoundedRectangle(cornerRadius: DS.Radius.lg))
+                .mediumShadow()
                 Spacer()
             }
             .listRowBackground(Color.clear)

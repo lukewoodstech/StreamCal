@@ -127,7 +127,7 @@ struct MovieRowView: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            AsyncImage(url: movie.posterImageURL.flatMap {
+            CachedAsyncImage(url: movie.posterImageURL.flatMap {
                 URL(string: $0.absoluteString.replacingOccurrences(of: "/w300", with: "/w92"))
             }) { phase in
                 switch phase {
@@ -135,17 +135,17 @@ struct MovieRowView: View {
                     image.resizable().aspectRatio(contentMode: .fill)
                 case .failure, .empty:
                     Rectangle()
-                        .foregroundStyle(Color(.systemGray5))
+                        .foregroundStyle(DS.Color.imagePlaceholder)
                         .overlay {
                             Image(systemName: "film")
                                 .foregroundStyle(.tertiary)
                         }
                 @unknown default:
-                    Rectangle().foregroundStyle(Color(.systemGray5))
+                    Rectangle().foregroundStyle(DS.Color.imagePlaceholder)
                 }
             }
             .frame(width: 44, height: 66)
-            .clipShape(RoundedRectangle(cornerRadius: 6))
+            .clipShape(RoundedRectangle(cornerRadius: DS.Radius.sm))
 
             VStack(alignment: .leading, spacing: 5) {
                 HStack(alignment: .firstTextBaseline) {
@@ -177,11 +177,11 @@ struct MovieRowView: View {
     private var releaseChip: some View {
         switch movie.releaseStatus {
         case .watched:
-            statusBadge("Watched", color: .green)
+            Text("Watched").statusBadge(color: .green)
         case .streaming:
-            statusBadge("Streaming", color: .blue)
+            Text("Streaming").statusBadge(color: .blue)
         case .released:
-            statusBadge("In Theaters", color: Color(red: 0.95, green: 0.35, blue: 0.35))
+            Text("In Theaters").statusBadge(color: DS.Color.movieTheaterRed)
         case .comingSoon:
             if movie.theatricalReleaseDate != .distantFuture {
                 Text(movie.theatricalReleaseDate, style: .date)
@@ -195,16 +195,6 @@ struct MovieRowView: View {
         }
     }
 
-    private func statusBadge(_ label: String, color: Color) -> some View {
-        Text(label)
-            .font(.caption2)
-            .fontWeight(.medium)
-            .padding(.horizontal, 6)
-            .padding(.vertical, 2)
-            .background(color.opacity(0.15))
-            .foregroundStyle(color)
-            .clipShape(Capsule())
-    }
 }
 
 #Preview {

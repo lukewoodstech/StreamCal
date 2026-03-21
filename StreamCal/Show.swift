@@ -1,5 +1,6 @@
 import Foundation
 import SwiftData
+import SwiftUI
 
 enum StreamingPlatform: String, CaseIterable, Codable, Hashable, Identifiable {
     // Major streaming
@@ -35,6 +36,37 @@ enum StreamingPlatform: String, CaseIterable, Codable, Hashable, Identifiable {
     case other = "Other"
 
     var id: String { rawValue }
+
+    var badgeColor: Color {
+        switch self {
+        case .netflix:       return .red
+        case .hulu:          return .green
+        case .disneyPlus:    return .blue
+        case .max:           return .purple
+        case .appleTV:       return .primary
+        case .amazonPrime:   return .cyan
+        case .peacock:       return .indigo
+        case .paramountPlus: return .teal
+        case .starz:         return Color(red: 0.1, green: 0.3, blue: 0.7)
+        case .mgmPlus:       return .orange
+        case .amcPlus:       return Color(red: 0.8, green: 0.1, blue: 0.1)
+        case .fx:            return .primary
+        case .crunchyroll:   return .orange
+        case .discoveryPlus: return .blue
+        case .espnPlus:      return .red
+        case .britbox:       return Color(red: 0.0, green: 0.35, blue: 0.75)
+        case .shudder:       return .purple
+        case .fubo:          return Color(red: 0.0, green: 0.6, blue: 0.3)
+        case .tubi:          return Color(red: 0.9, green: 0.1, blue: 0.4)
+        case .plutoTV:       return .indigo
+        case .nbc:           return Color(red: 0.9, green: 0.5, blue: 0.0)
+        case .abc:           return .secondary
+        case .cbs:           return .blue
+        case .fox:           return Color(red: 0.9, green: 0.6, blue: 0.0)
+        case .pbs:           return .blue
+        case .other:         return .secondary
+        }
+    }
 
     var webURL: URL? {
         let str: String

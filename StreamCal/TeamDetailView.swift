@@ -25,24 +25,24 @@ struct TeamDetailView: View {
             // Team header
             Section {
                 HStack(spacing: 14) {
-                    AsyncImage(url: team.badgeImageURL) { phase in
+                    CachedAsyncImage(url: team.badgeImageURL) { phase in
                         switch phase {
                         case .success(let image):
                             image.resizable().aspectRatio(contentMode: .fit)
                         case .failure, .empty:
-                            RoundedRectangle(cornerRadius: 8)
-                                .foregroundStyle(Color(.systemGray5))
+                            RoundedRectangle(cornerRadius: DS.Radius.md)
+                                .foregroundStyle(DS.Color.imagePlaceholder)
                                 .overlay {
                                     Image(systemName: "sportscourt")
                                         .foregroundStyle(.tertiary)
                                 }
                         @unknown default:
-                            RoundedRectangle(cornerRadius: 8)
-                                .foregroundStyle(Color(.systemGray5))
+                            RoundedRectangle(cornerRadius: DS.Radius.md)
+                                .foregroundStyle(DS.Color.imagePlaceholder)
                         }
                     }
                     .frame(width: 64, height: 64)
-                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                    .clipShape(RoundedRectangle(cornerRadius: DS.Radius.md))
 
                     VStack(alignment: .leading, spacing: 4) {
                         Text(team.league)

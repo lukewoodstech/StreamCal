@@ -191,8 +191,8 @@ struct ToastView: View {
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14))
-        .shadow(color: .black.opacity(0.12), radius: 8, x: 0, y: 4)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: DS.Radius.toast))
+        .lightShadow()
         .padding(.horizontal, 20)
     }
 }
@@ -365,52 +365,18 @@ struct PlatformBadge: View {
     let platform: String
     @Environment(\.openURL) private var openURL
 
+    private var platformColor: Color {
+        StreamingPlatform(rawValue: platform)?.badgeColor ?? .secondary
+    }
+
     var body: some View {
-        let badge = Text(platform)
-            .font(.caption2)
-            .fontWeight(.medium)
-            .padding(.horizontal, 6)
-            .padding(.vertical, 2)
-            .background(platformColor.opacity(0.15))
-            .foregroundStyle(platformColor)
-            .clipShape(Capsule())
+        let badge = Text(platform).statusBadge(color: platformColor)
 
         if let url = StreamingPlatform(rawValue: platform)?.webURL {
             Button { openURL(url) } label: { badge }
                 .buttonStyle(.plain)
         } else {
             badge
-        }
-    }
-
-    private var platformColor: Color {
-        switch StreamingPlatform(rawValue: platform) {
-        case .netflix:       return .red
-        case .hulu:          return .green
-        case .disneyPlus:    return .blue
-        case .max:           return .purple
-        case .appleTV:       return .primary
-        case .amazonPrime:   return .cyan
-        case .peacock:       return .indigo
-        case .paramountPlus: return .teal
-        case .starz:         return Color(red: 0.1, green: 0.3, blue: 0.7)
-        case .mgmPlus:       return .orange
-        case .amcPlus:       return Color(red: 0.8, green: 0.1, blue: 0.1)
-        case .fx:            return .primary
-        case .crunchyroll:   return .orange
-        case .discoveryPlus: return .blue
-        case .espnPlus:      return .red
-        case .britbox:       return Color(red: 0.0, green: 0.35, blue: 0.75)
-        case .shudder:       return .purple
-        case .fubo:          return Color(red: 0.0, green: 0.6, blue: 0.3)
-        case .tubi:          return Color(red: 0.9, green: 0.1, blue: 0.4)
-        case .plutoTV:       return .indigo
-        case .nbc:           return Color(red: 0.9, green: 0.5, blue: 0.0)
-        case .abc:           return .secondary
-        case .cbs:           return .blue
-        case .fox:           return Color(red: 0.9, green: 0.6, blue: 0.0)
-        case .pbs:           return .blue
-        case .other, nil:    return .secondary
         }
     }
 }

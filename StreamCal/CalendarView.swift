@@ -42,46 +42,43 @@ struct CalendarView: View {
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: 0) {
-                MonthGridView(
-                    displayedMonth: $displayedMonth,
-                    selectedDate: $selectedDate,
-                    episodesByDate: episodesByDate,
-                    moviesByDate: daysByDate.mapValues { $0.movies },
-                    gamesByDate: daysByDate.mapValues { $0.games },
-                    today: today,
-                    onMonthChanged: { newMonth in
-                        selectedDate = nearestDate(in: newMonth, from: episodesByDate) ?? cal.startOfMonth(for: newMonth)
-                    },
-                    onGoToToday: {
-                        withAnimation(.easeInOut(duration: 0.2)) {
-                            displayedMonth = cal.startOfMonth(for: today)
-                            selectedDate = today
-                        }
+            dayPane
+                .safeAreaInset(edge: .top, spacing: 0) {
+                    VStack(spacing: 0) {
+                        MonthGridView(
+                            displayedMonth: $displayedMonth,
+                            selectedDate: $selectedDate,
+                            episodesByDate: episodesByDate,
+                            moviesByDate: daysByDate.mapValues { $0.movies },
+                            gamesByDate: daysByDate.mapValues { $0.games },
+                            today: today,
+                            onMonthChanged: { newMonth in
+                                selectedDate = nearestDate(in: newMonth, from: episodesByDate) ?? cal.startOfMonth(for: newMonth)
+                            },
+                            onGoToToday: {
+                                withAnimation(.easeInOut(duration: 0.2)) {
+                                    displayedMonth = cal.startOfMonth(for: today)
+                                    selectedDate = today
+                                }
+                            }
+                        )
+                        .padding(.horizontal, 16)
+                        .padding(.bottom, 8)
+
+                        Divider()
                     }
-                )
-                .padding(.horizontal, 16)
-                .padding(.bottom, 8)
-
-                Divider()
-
-                dayPane
-            }
-            .navigationTitle("Calendar")
-            .navigationBarTitleDisplayMode(.inline)
-            .refreshable {
-                await RefreshService.shared.refreshAllShows(modelContext: modelContext)
-                await RefreshService.shared.refreshAllMovies(modelContext: modelContext)
-                await RefreshService.shared.refreshAllTeams(modelContext: modelContext)
-            }
-            .onAppear {
-                selectedDate = nearestDate(from: today, in: episodesByDate) ?? today
-            }
-            .onChange(of: episodesByDate.keys.count) {
-                if !selectedHasContent {
+                    .background(Color(.systemBackground))
+                }
+                .navigationTitle("Calendar")
+                .navigationBarTitleDisplayMode(.large)
+                .onAppear {
                     selectedDate = nearestDate(from: today, in: episodesByDate) ?? today
                 }
-            }
+                .onChange(of: episodesByDate.keys.count) {
+                    if !selectedHasContent {
+                        selectedDate = nearestDate(from: today, in: episodesByDate) ?? today
+                    }
+                }
         }
     }
 
@@ -138,7 +135,16 @@ struct CalendarView: View {
                     }
                 }
                 .listStyle(.insetGrouped)
+                .refreshable { await refreshAll() }
             }
+        }
+    }
+
+    private func refreshAll() async {
+        await withTaskGroup(of: Void.self) { group in
+            group.addTask { await RefreshService.shared.refreshAllShows(modelContext: modelContext) }
+            group.addTask { await RefreshService.shared.refreshAllMovies(modelContext: modelContext) }
+            group.addTask { await RefreshService.shared.refreshAllTeams(modelContext: modelContext) }
         }
     }
 
@@ -313,7 +319,7 @@ struct DayCell: View {
     private var dotColors: [Color] {
         var colors: [Color] = []
         if !episodes.isEmpty { colors.append(isToday ? .orange : .accentColor) }
-        if !movies.isEmpty { colors.append(Color(red: 0.95, green: 0.35, blue: 0.35)) }
+        if !movies.isEmpty { colors.append(DS.Color.movieTheaterRed) }
         if !games.isEmpty { colors.append(.green) }
         return Array(colors.prefix(3))
     }
@@ -443,21 +449,21 @@ struct CalendarMovieRow: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            AsyncImage(url: movie.posterImageURL.flatMap {
+            CachedAsyncImage(url: movie.posterImageURL.flatMap {
                 URL(string: $0.absoluteString.replacingOccurrences(of: "/w300", with: "/w92"))
             }) { phase in
                 switch phase {
                 case .success(let image): image.resizable().aspectRatio(contentMode: .fill)
                 default:
-                    RoundedRectangle(cornerRadius: 4)
-                        .foregroundStyle(Color(.systemGray5))
+                    RoundedRectangle(cornerRadius: DS.Radius.xs)
+                        .foregroundStyle(DS.Color.imagePlaceholder)
                         .overlay { Image(systemName: "film").foregroundStyle(.tertiary).imageScale(.small) }
                 }
             }
             .frame(width: 30, height: 44)
-            .clipShape(RoundedRectangle(cornerRadius: 4))
+            .clipShape(RoundedRectangle(cornerRadius: DS.Radius.xs))
             .overlay(RoundedRectangle(cornerRadius: 4)
-                .stroke(isToday ? Color(red: 0.95, green: 0.35, blue: 0.35) : Color.clear, lineWidth: 2))
+                .stroke(isToday ? DS.Color.movieTheaterRed : Color.clear, lineWidth: 2))
 
             VStack(alignment: .leading, spacing: 3) {
                 Text(movie.title)
@@ -482,19 +488,19 @@ struct CalendarGameRow: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            AsyncImage(url: game.team?.badgeImageURL) { phase in
+            CachedAsyncImage(url: game.team?.badgeImageURL) { phase in
                 switch phase {
                 case .success(let image):
                     image.resizable().aspectRatio(contentMode: .fit)
                 default:
-                    RoundedRectangle(cornerRadius: 4)
-                        .foregroundStyle(Color(.systemGray5))
+                    RoundedRectangle(cornerRadius: DS.Radius.xs)
+                        .foregroundStyle(DS.Color.imagePlaceholder)
                         .overlay { Image(systemName: "sportscourt").foregroundStyle(.tertiary).imageScale(.small) }
                 }
             }
             .frame(width: 30, height: 44)
-            .clipShape(RoundedRectangle(cornerRadius: 4))
-            .overlay(RoundedRectangle(cornerRadius: 4)
+            .clipShape(RoundedRectangle(cornerRadius: DS.Radius.xs))
+            .overlay(RoundedRectangle(cornerRadius: DS.Radius.xs)
                 .stroke(isToday ? Color.green : Color.clear, lineWidth: 2))
 
             VStack(alignment: .leading, spacing: 3) {
