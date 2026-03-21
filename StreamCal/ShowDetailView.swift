@@ -7,7 +7,6 @@ struct ShowDetailView: View {
     let show: Show
 
     @State private var showingEditShow = false
-    @State private var showingAddEpisode = false
     @State private var isRefreshing = false
     @State private var refreshError: String? = nil
 
@@ -51,6 +50,20 @@ struct ShowDetailView: View {
                             Label("Mark All Aired as Watched", systemImage: "checkmark.circle.fill")
                         }
                     }
+                    Button {
+                        show.notificationsEnabled.toggle()
+                        if show.notificationsEnabled {
+                            Task { await NotificationService.shared.scheduleNotifications(for: show) }
+                        } else {
+                            Task { await NotificationService.shared.cancelNotifications(for: show) }
+                        }
+                    } label: {
+                        Label(
+                            show.notificationsEnabled ? "Mute Notifications" : "Unmute Notifications",
+                            systemImage: show.notificationsEnabled ? "bell.slash" : "bell"
+                        )
+                    }
+
                     Divider()
                     Button(show.isArchived ? "Unarchive" : "Archive") {
                         show.isArchived.toggle()
@@ -63,9 +76,6 @@ struct ShowDetailView: View {
         }
         .sheet(isPresented: $showingEditShow) {
             AddShowSheet(existingShow: show)
-        }
-        .sheet(isPresented: $showingAddEpisode) {
-            AddEpisodeSheet(show: show)
         }
     }
 
@@ -183,18 +193,7 @@ struct ShowDetailView: View {
                 }
             }
         } header: {
-            HStack {
-                Text("Episodes")
-                Spacer()
-                Button {
-                    showingAddEpisode = true
-                } label: {
-                    Image(systemName: "plus.circle.fill")
-                        .imageScale(.large)
-                }
-                .buttonStyle(.plain)
-                .foregroundStyle(Color.accentColor)
-            }
+            Text("Episodes")
         }
     }
 

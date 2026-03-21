@@ -11,7 +11,18 @@ struct LibraryView: View {
     @State private var showingAddShow = false
     @State private var addedShowTitle: String? = nil
 
-    var activeShows: [Show] { shows.filter { !$0.isArchived } }
+    var airingShows: [Show] {
+        shows
+            .filter { !$0.isArchived && $0.nextUpcomingEpisode != nil && $0.nextUpcomingEpisode?.airDate != .distantFuture }
+            .sorted { ($0.nextUpcomingEpisode?.airDate ?? .distantFuture) < ($1.nextUpcomingEpisode?.airDate ?? .distantFuture) }
+    }
+
+    var betweenSeasonsShows: [Show] {
+        shows
+            .filter { !$0.isArchived && ($0.nextUpcomingEpisode == nil || $0.nextUpcomingEpisode?.airDate == .distantFuture) }
+            .sorted { $0.title < $1.title }
+    }
+
     var archivedShows: [Show] { shows.filter { $0.isArchived } }
 
     var body: some View {
@@ -25,9 +36,35 @@ struct LibraryView: View {
                     )
                 } else {
                     List {
-                        if !activeShows.isEmpty {
-                            Section("Following") {
-                                ForEach(activeShows) { show in
+                        if !airingShows.isEmpty {
+                            Section("Airing") {
+                                ForEach(airingShows) { show in
+                                    NavigationLink(destination: ShowDetailView(show: show)) {
+                                        ShowRowView(show: show)
+                                    }
+                                    .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                                        Button(role: .destructive) {
+                                            modelContext.delete(show)
+                                        } label: {
+                                            Label("Delete", systemImage: "trash")
+                                        }
+                                    }
+                                    .swipeActions(edge: .leading) {
+                                        Button {
+                                            show.isArchived = true
+                                            show.updatedAt = .now
+                                        } label: {
+                                            Label("Archive", systemImage: "archivebox")
+                                        }
+                                        .tint(.orange)
+                                    }
+                                }
+                            }
+                        }
+
+                        if !betweenSeasonsShows.isEmpty {
+                            Section("Between Seasons") {
+                                ForEach(betweenSeasonsShows) { show in
                                     NavigationLink(destination: ShowDetailView(show: show)) {
                                         ShowRowView(show: show)
                                     }
@@ -185,6 +222,11 @@ struct ShowRowView: View {
                     Text(show.title)
                         .font(.headline)
                         .lineLimit(1)
+                    if !show.notificationsEnabled {
+                        Image(systemName: "bell.slash.fill")
+                            .imageScale(.small)
+                            .foregroundStyle(.tertiary)
+                    }
                     Spacer()
                     PlatformBadge(platform: show.platform)
                 }

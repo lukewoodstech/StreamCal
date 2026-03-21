@@ -70,7 +70,7 @@ struct NextUpView: View {
                                 watchedButton(item.episode, item.show)
                             }
                             .swipeActions(edge: .trailing) {
-                                planTonightButton(item.episode)
+                                planTonightButton(item.episode, item.show)
                             }
                     }
                 } header: {
@@ -86,7 +86,7 @@ struct NextUpView: View {
                                 watchedButton(item.episode, item.show)
                             }
                             .swipeActions(edge: .trailing) {
-                                planTonightButton(item.episode)
+                                planTonightButton(item.episode, item.show)
                             }
                     }
                 } header: {
@@ -102,7 +102,7 @@ struct NextUpView: View {
                                 watchedButton(item.episode, item.show)
                             }
                             .swipeActions(edge: .trailing) {
-                                planTonightButton(item.episode)
+                                planTonightButton(item.episode, item.show)
                             }
                     }
                 } header: {
@@ -142,9 +142,10 @@ struct NextUpView: View {
     }
 
     @ViewBuilder
-    private func planTonightButton(_ episode: Episode) -> some View {
+    private func planTonightButton(_ episode: Episode, _ show: Show) -> some View {
         Button {
             WatchPlanner.planTonight(episode)
+            Task { await NotificationService.shared.scheduleNotifications(for: show) }
         } label: {
             Label("Tonight", systemImage: "moon.stars.fill")
         }
@@ -303,18 +304,21 @@ struct EpisodeContextMenuItems: View {
 
             Button {
                 WatchPlanner.planTonight(episode)
+                Task { await NotificationService.shared.scheduleNotifications(for: show) }
             } label: {
                 Label("Watch Tonight", systemImage: "moon.stars")
             }
 
             Button {
                 WatchPlanner.planTomorrow(episode)
+                Task { await NotificationService.shared.scheduleNotifications(for: show) }
             } label: {
                 Label("Watch Tomorrow", systemImage: "sunrise")
             }
 
             Button {
                 WatchPlanner.planThisWeekend(episode)
+                Task { await NotificationService.shared.scheduleNotifications(for: show) }
             } label: {
                 Label("Watch This Weekend", systemImage: "calendar.badge.clock")
             }
@@ -322,6 +326,7 @@ struct EpisodeContextMenuItems: View {
             if episode.plannedDate != nil {
                 Button(role: .destructive) {
                     WatchPlanner.clearPlan(for: episode)
+                    Task { await NotificationService.shared.scheduleNotifications(for: show) }
                 } label: {
                     Label("Clear Plan", systemImage: "xmark.circle")
                 }

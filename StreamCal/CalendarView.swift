@@ -400,6 +400,9 @@ struct CalendarEpisodeRow: View {
         .swipeActions(edge: .trailing) {
             Button {
                 WatchPlanner.planTonight(episode)
+                if let show {
+                    Task { await NotificationService.shared.scheduleNotifications(for: show) }
+                }
             } label: {
                 Label("Tonight", systemImage: "moon.stars.fill")
             }

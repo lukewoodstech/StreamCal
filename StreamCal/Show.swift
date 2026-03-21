@@ -28,6 +28,9 @@ final class Show: Identifiable {
     var overview: String?
     var showStatus: String?
 
+    /// When false, all notifications for this show are suppressed.
+    var notificationsEnabled: Bool = true
+
     @Relationship(deleteRule: .cascade, inverse: \Episode.show)
     var episodes: [Episode] = []
 

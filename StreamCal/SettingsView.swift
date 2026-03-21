@@ -13,8 +13,17 @@ struct SettingsView: View {
     @State private var showingDeletedBanner = false
     @State private var notificationStatus: UNAuthorizationStatus = .notDetermined
 
+    // Notification time picker modal
+    private enum TimeSlot { case air, plan, advance, weekly }
+    @State private var editingSlot: TimeSlot? = nil
+    @State private var pickerDate: Date = .now
+
     @AppStorage("airReminderHour") private var airReminderHour: Int = 9
     @AppStorage("planReminderHour") private var planReminderHour: Int = 20
+    @AppStorage("advanceReminderEnabled") private var advanceReminderEnabled: Bool = true
+    @AppStorage("advanceReminderHour") private var advanceReminderHour: Int = 20
+    @AppStorage("weeklySummaryEnabled") private var weeklySummaryEnabled: Bool = true
+    @AppStorage("weeklySummaryHour") private var weeklySummaryHour: Int = 20
 
     private var appVersion: String {
         Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "—"
@@ -40,19 +49,35 @@ struct SettingsView: View {
                         Label("Enabled", systemImage: "bell.fill")
                             .foregroundStyle(.green)
 
-                        Picker("New episode reminder", selection: $airReminderHour) {
-                            ForEach(0..<24, id: \.self) { hour in
-                                Text(formattedHour(hour)).tag(hour)
-                            }
+                        timeRow(label: "New episode reminder", hour: airReminderHour) {
+                            pickerDate = dateFromHour(airReminderHour)
+                            editingSlot = .air
                         }
-                        .onChange(of: airReminderHour) { _, _ in rescheduleNotifications() }
 
-                        Picker("Tonight's plan reminder", selection: $planReminderHour) {
-                            ForEach(0..<24, id: \.self) { hour in
-                                Text(formattedHour(hour)).tag(hour)
+                        timeRow(label: "Tonight's plan reminder", hour: planReminderHour) {
+                            pickerDate = dateFromHour(planReminderHour)
+                            editingSlot = .plan
+                        }
+
+                        Toggle("Day-before reminder", isOn: $advanceReminderEnabled)
+                            .onChange(of: advanceReminderEnabled) { _, _ in rescheduleNotifications() }
+
+                        if advanceReminderEnabled {
+                            timeRow(label: "Day-before reminder time", hour: advanceReminderHour) {
+                                pickerDate = dateFromHour(advanceReminderHour)
+                                editingSlot = .advance
                             }
                         }
-                        .onChange(of: planReminderHour) { _, _ in rescheduleNotifications() }
+
+                        Toggle("Weekly summary", isOn: $weeklySummaryEnabled)
+                            .onChange(of: weeklySummaryEnabled) { _, _ in rescheduleNotifications() }
+
+                        if weeklySummaryEnabled {
+                            timeRow(label: "Sunday summary time", hour: weeklySummaryHour) {
+                                pickerDate = dateFromHour(weeklySummaryHour)
+                                editingSlot = .weekly
+                            }
+                        }
 
                     case .denied:
                         VStack(alignment: .leading, spacing: 6) {
@@ -87,10 +112,9 @@ struct SettingsView: View {
                     }
                 }
                 }
-                .disabled(showingDeleteAllConfirm)
+                .disabled(showingDeleteAllConfirm || editingSlot != nil)
 
                 if showingDeleteAllConfirm {
-                    // Dimmed background to focus the confirmation modal
                     Color.black.opacity(0.35)
                         .ignoresSafeArea()
                         .transition(.opacity)
@@ -128,6 +152,49 @@ struct SettingsView: View {
                     .padding(.horizontal, 32)
                     .transition(.scale.combined(with: .opacity))
                 }
+
+                if let slot = editingSlot {
+                    Color.black.opacity(0.35)
+                        .ignoresSafeArea()
+                        .transition(.opacity)
+                        .onTapGesture { editingSlot = nil }
+
+                    VStack(spacing: 16) {
+                        Text(slotTitle(slot))
+                            .font(.title3.weight(.semibold))
+
+                        DatePicker("", selection: $pickerDate, displayedComponents: .hourAndMinute)
+                            .datePickerStyle(.wheel)
+                            .labelsHidden()
+
+                        HStack(spacing: 12) {
+                            Button("Cancel") {
+                                editingSlot = nil
+                            }
+                            .frame(maxWidth: .infinity)
+                            .buttonStyle(.bordered)
+
+                            Button("Done") {
+                                let hour = Calendar.current.component(.hour, from: pickerDate)
+                                switch slot {
+                                case .air: airReminderHour = hour
+                                case .plan: planReminderHour = hour
+                                case .advance: advanceReminderHour = hour
+                                case .weekly: weeklySummaryHour = hour
+                                }
+                                rescheduleNotifications()
+                                editingSlot = nil
+                            }
+                            .frame(maxWidth: .infinity)
+                            .buttonStyle(.borderedProminent)
+                        }
+                    }
+                    .padding(20)
+                    .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+                    .shadow(color: .black.opacity(0.25), radius: 20, y: 10)
+                    .padding(.horizontal, 32)
+                    .transition(.scale.combined(with: .opacity))
+                }
             }
             .navigationTitle("Settings")
             .task {
@@ -152,10 +219,45 @@ struct SettingsView: View {
             }
             .animation(.spring(duration: 0.35), value: showingDeletedBanner)
             .animation(.spring(duration: 0.3), value: showingDeleteAllConfirm)
+            .animation(.spring(duration: 0.3), value: editingSlot == nil)
+        }
+    }
+
+    // MARK: - Row helper
+
+    private func timeRow(label: String, hour: Int, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack {
+                Text(label)
+                    .foregroundStyle(.primary)
+                Spacer()
+                Text(formattedHour(hour))
+                    .foregroundStyle(.secondary)
+                Image(systemName: "chevron.right")
+                    .imageScale(.small)
+                    .fontWeight(.semibold)
+                    .foregroundStyle(.tertiary)
+            }
         }
     }
 
     // MARK: - Helpers
+
+    private func slotTitle(_ slot: TimeSlot) -> String {
+        switch slot {
+        case .air: return "New Episode Reminder"
+        case .plan: return "Tonight's Plan Reminder"
+        case .advance: return "Day-Before Reminder"
+        case .weekly: return "Weekly Summary"
+        }
+    }
+
+    private func dateFromHour(_ hour: Int) -> Date {
+        var components = DateComponents()
+        components.hour = hour
+        components.minute = 0
+        return Calendar.current.date(from: components) ?? Date()
+    }
 
     private func formattedHour(_ hour: Int) -> String {
         var components = DateComponents()
