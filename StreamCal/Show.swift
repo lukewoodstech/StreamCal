@@ -1,7 +1,8 @@
 import Foundation
 import SwiftData
 
-enum StreamingPlatform: String, CaseIterable, Codable {
+enum StreamingPlatform: String, CaseIterable, Codable, Hashable, Identifiable {
+    // Major streaming
     case netflix = "Netflix"
     case hulu = "Hulu"
     case disneyPlus = "Disney+"
@@ -10,7 +11,63 @@ enum StreamingPlatform: String, CaseIterable, Codable {
     case amazonPrime = "Prime Video"
     case peacock = "Peacock"
     case paramountPlus = "Paramount+"
+    // Premium
+    case starz = "Starz"
+    case mgmPlus = "MGM+"
+    // Niche streaming
+    case amcPlus = "AMC+"
+    case fx = "FX"
+    case crunchyroll = "Crunchyroll"
+    case discoveryPlus = "discovery+"
+    case espnPlus = "ESPN+"
+    case britbox = "BritBox"
+    case shudder = "Shudder"
+    case fubo = "Fubo"
+    case tubi = "Tubi"
+    case plutoTV = "Pluto TV"
+    // Broadcast
+    case nbc = "NBC"
+    case abc = "ABC"
+    case cbs = "CBS"
+    case fox = "Fox"
+    case pbs = "PBS"
+
     case other = "Other"
+
+    var id: String { rawValue }
+
+    var webURL: URL? {
+        let str: String
+        switch self {
+        case .netflix:       str = "https://www.netflix.com"
+        case .hulu:          str = "https://www.hulu.com"
+        case .disneyPlus:    str = "https://www.disneyplus.com"
+        case .max:           str = "https://www.max.com"
+        case .appleTV:       str = "https://tv.apple.com"
+        case .amazonPrime:   str = "https://www.amazon.com/gp/video/storefront"
+        case .peacock:       str = "https://www.peacocktv.com"
+        case .paramountPlus: str = "https://www.paramountplus.com"
+        case .starz:         str = "https://www.starz.com"
+        case .mgmPlus:       str = "https://www.mgmplus.com"
+        case .amcPlus:       str = "https://www.amcplus.com"
+        case .fx:            str = "https://www.hulu.com"
+        case .crunchyroll:   str = "https://www.crunchyroll.com"
+        case .discoveryPlus: str = "https://www.discoveryplus.com"
+        case .espnPlus:      str = "https://www.espnplus.com"
+        case .britbox:       str = "https://www.britbox.com"
+        case .shudder:       str = "https://www.shudder.com"
+        case .fubo:          str = "https://www.fubo.tv"
+        case .tubi:          str = "https://tubitv.com"
+        case .plutoTV:       str = "https://pluto.tv"
+        case .nbc:           str = "https://www.nbc.com"
+        case .abc:           str = "https://abc.com"
+        case .cbs:           str = "https://www.cbs.com"
+        case .fox:           str = "https://www.fox.com"
+        case .pbs:           str = "https://www.pbs.org/watch"
+        case .other:         return nil
+        }
+        return URL(string: str)
+    }
 }
 
 @Model
@@ -30,6 +87,10 @@ final class Show: Identifiable {
 
     /// When false, all notifications for this show are suppressed.
     var notificationsEnabled: Bool = true
+
+    /// All platforms this show is available on (populated from TMDB networks).
+    /// Empty for shows added before multi-platform support — fall back to `platform`.
+    var platforms: [String] = []
 
     @Relationship(deleteRule: .cascade, inverse: \Episode.show)
     var episodes: [Episode] = []

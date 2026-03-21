@@ -19,10 +19,12 @@ struct AddShowSheet: View {
     @State private var libraryTMDBIDs: Set<Int> = []
 
     // Edit-mode fields
-    @State private var editPlatform = StreamingPlatform.netflix.rawValue
+    @State private var editPlatforms: Set<String> = []
     @State private var editNotes = ""
 
     var isEditMode: Bool { existingShow != nil }
+
+    private let selectablePlatforms: [StreamingPlatform] = StreamingPlatform.allCases.filter { $0 != .other }
 
     var body: some View {
         NavigationStack {
@@ -48,7 +50,8 @@ struct AddShowSheet: View {
             }
             .onAppear {
                 if let show = existingShow {
-                    editPlatform = show.platform
+                    let current = show.platforms.isEmpty ? [show.platform] : show.platforms
+                    editPlatforms = Set(current)
                     editNotes = show.notes
                 }
                 loadLibraryIDs()
@@ -114,16 +117,40 @@ struct AddShowSheet: View {
 
     private var editForm: some View {
         Form {
-            Section("Platform") {
-                Picker("Platform", selection: $editPlatform) {
-                    ForEach(StreamingPlatform.allCases, id: \.rawValue) { p in
-                        Text(p.rawValue).tag(p.rawValue)
-                    }
-                }
+            Section("Platforms") {
+                platformRows
             }
             Section("Notes") {
                 TextField("Optional notes…", text: $editNotes, axis: .vertical)
                     .lineLimit(3...6)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var platformRows: some View {
+        ForEach(selectablePlatforms) { p in
+            platformRow(p)
+        }
+    }
+
+    private func platformRow(_ p: StreamingPlatform) -> some View {
+        Button {
+            if editPlatforms.contains(p.rawValue) {
+                editPlatforms.remove(p.rawValue)
+            } else {
+                editPlatforms.insert(p.rawValue)
+            }
+        } label: {
+            HStack {
+                Text(p.rawValue)
+                    .foregroundStyle(.primary)
+                Spacer()
+                if editPlatforms.contains(p.rawValue) {
+                    Image(systemName: "checkmark")
+                        .foregroundStyle(Color.accentColor)
+                        .fontWeight(.semibold)
+                }
             }
         }
     }
@@ -171,17 +198,18 @@ struct AddShowSheet: View {
 
         do {
             let details = try await TMDBService.shared.fetchShowDetails(tmdbID: tmdbShow.id)
-            let platform = platformFromNetworks(details.networks)
+            let matchedPlatforms = platformsFromNetworks(details.networks)
 
             let show = Show(
                 title: tmdbShow.name,
-                platform: platform,
+                platform: matchedPlatforms.first ?? StreamingPlatform.other.rawValue,
                 notes: "",
                 tmdbID: tmdbShow.id,
                 posterURL: tmdbShow.posterURL?.absoluteString,
                 overview: tmdbShow.overview,
                 showStatus: details.status
             )
+            show.platforms = matchedPlatforms
             modelContext.insert(show)
 
             let allEpisodes = try await TMDBService.shared.fetchAllEpisodes(tmdbID: tmdbShow.id)
@@ -213,7 +241,9 @@ struct AddShowSheet: View {
 
     private func saveEdit() {
         guard let show = existingShow else { return }
-        show.platform = editPlatform
+        let selected = Array(editPlatforms).sorted()
+        show.platforms = selected
+        show.platform = selected.first ?? StreamingPlatform.other.rawValue
         show.notes = editNotes
         show.updatedAt = .now
         dismiss()
@@ -221,18 +251,41 @@ struct AddShowSheet: View {
 
     // MARK: - Helpers
 
-    private func platformFromNetworks(_ networks: [TMDBNetwork]?) -> String {
-        guard let networks else { return StreamingPlatform.other.rawValue }
-        let names = networks.map { $0.name.lowercased() }
-        if names.contains(where: { $0.contains("netflix") }) { return StreamingPlatform.netflix.rawValue }
-        if names.contains(where: { $0.contains("hulu") }) { return StreamingPlatform.hulu.rawValue }
-        if names.contains(where: { $0.contains("disney") }) { return StreamingPlatform.disneyPlus.rawValue }
-        if names.contains(where: { $0.contains("max") || $0.contains("hbo") }) { return StreamingPlatform.max.rawValue }
-        if names.contains(where: { $0.contains("apple") }) { return StreamingPlatform.appleTV.rawValue }
-        if names.contains(where: { $0.contains("amazon") || $0.contains("prime") }) { return StreamingPlatform.amazonPrime.rawValue }
-        if names.contains(where: { $0.contains("peacock") }) { return StreamingPlatform.peacock.rawValue }
-        if names.contains(where: { $0.contains("paramount") }) { return StreamingPlatform.paramountPlus.rawValue }
-        return StreamingPlatform.other.rawValue
+    private func platformsFromNetworks(_ networks: [TMDBNetwork]?) -> [String] {
+        guard let networks, !networks.isEmpty else { return [StreamingPlatform.other.rawValue] }
+        var matched: [String] = []
+        for name in networks.map({ $0.name.lowercased() }) {
+            let p: StreamingPlatform?
+            if name.contains("netflix")                            { p = .netflix }
+            else if name.contains("hulu")                          { p = .hulu }
+            else if name.contains("disney")                        { p = .disneyPlus }
+            else if name.contains("max") || name.contains("hbo")  { p = .max }
+            else if name.contains("apple")                         { p = .appleTV }
+            else if name.contains("amazon") || name.contains("prime") { p = .amazonPrime }
+            else if name.contains("peacock")                       { p = .peacock }
+            else if name.contains("paramount") || name.contains("showtime") { p = .paramountPlus }
+            else if name.contains("starz")                         { p = .starz }
+            else if name.contains("mgm")                           { p = .mgmPlus }
+            else if name.contains("amc")                           { p = .amcPlus }
+            else if name.contains("fx") || name.contains("fxx")   { p = .fx }
+            else if name.contains("crunchyroll")                   { p = .crunchyroll }
+            else if name.contains("discovery")                     { p = .discoveryPlus }
+            else if name.contains("espn")                          { p = .espnPlus }
+            else if name.contains("britbox")                       { p = .britbox }
+            else if name.contains("shudder")                       { p = .shudder }
+            else if name.contains("fubo")                          { p = .fubo }
+            else if name.contains("tubi")                          { p = .tubi }
+            else if name.contains("pluto")                         { p = .plutoTV }
+            else if name.contains("nbc")                           { p = .nbc }
+            else if name == "abc" || name.contains("abc (us)")     { p = .abc }
+            else if name.contains("cbs")                           { p = .cbs }
+            else if name == "fox" || name.contains("fox broadcasting") { p = .fox }
+            else if name.contains("pbs")                           { p = .pbs }
+            else                                                   { p = nil }
+
+            if let p, !matched.contains(p.rawValue) { matched.append(p.rawValue) }
+        }
+        return matched.isEmpty ? [StreamingPlatform.other.rawValue] : matched
     }
 }
 

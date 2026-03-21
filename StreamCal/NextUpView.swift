@@ -201,7 +201,7 @@ struct EpisodeCard: View {
                         .font(.headline)
                         .lineLimit(1)
                     Spacer()
-                    PlatformBadge(platform: show.platform)
+                    PlatformBadges(show: show)
                 }
 
                 Text(episode.displayTitle)

@@ -353,8 +353,8 @@ struct CalendarEpisodeRow: View {
                         .fontWeight(.medium)
                         .lineLimit(1)
                     Spacer()
-                    if let platform = show?.platform {
-                        PlatformBadge(platform: platform)
+                    if let show {
+                        PlatformBadges(show: show)
                     }
                 }
                 Text(episode.displayTitle)

@@ -228,7 +228,7 @@ struct ShowRowView: View {
                             .foregroundStyle(.tertiary)
                     }
                     Spacer()
-                    PlatformBadge(platform: show.platform)
+                    PlatformBadges(show: show)
                 }
 
                 // Progress line
@@ -271,11 +271,29 @@ struct ShowRowView: View {
     }
 }
 
-struct PlatformBadge: View {
-    let platform: String
+/// Shows all platforms for a given show, falling back to the legacy single-platform field.
+struct PlatformBadges: View {
+    let show: Show
+
+    private var platforms: [String] {
+        show.platforms.isEmpty ? [show.platform] : show.platforms
+    }
 
     var body: some View {
-        Text(platform)
+        HStack(spacing: 4) {
+            ForEach(platforms, id: \.self) { platform in
+                PlatformBadge(platform: platform)
+            }
+        }
+    }
+}
+
+struct PlatformBadge: View {
+    let platform: String
+    @Environment(\.openURL) private var openURL
+
+    var body: some View {
+        let badge = Text(platform)
             .font(.caption2)
             .fontWeight(.medium)
             .padding(.horizontal, 6)
@@ -283,19 +301,43 @@ struct PlatformBadge: View {
             .background(platformColor.opacity(0.15))
             .foregroundStyle(platformColor)
             .clipShape(Capsule())
+
+        if let url = StreamingPlatform(rawValue: platform)?.webURL {
+            Button { openURL(url) } label: { badge }
+                .buttonStyle(.plain)
+        } else {
+            badge
+        }
     }
 
     private var platformColor: Color {
-        switch platform {
-        case StreamingPlatform.netflix.rawValue: return .red
-        case StreamingPlatform.disneyPlus.rawValue: return .blue
-        case StreamingPlatform.hulu.rawValue: return .green
-        case StreamingPlatform.max.rawValue: return .purple
-        case StreamingPlatform.appleTV.rawValue: return .primary
-        case StreamingPlatform.amazonPrime.rawValue: return .cyan
-        case StreamingPlatform.peacock.rawValue: return .indigo
-        case StreamingPlatform.paramountPlus.rawValue: return .teal
-        default: return .secondary
+        switch StreamingPlatform(rawValue: platform) {
+        case .netflix:       return .red
+        case .hulu:          return .green
+        case .disneyPlus:    return .blue
+        case .max:           return .purple
+        case .appleTV:       return .primary
+        case .amazonPrime:   return .cyan
+        case .peacock:       return .indigo
+        case .paramountPlus: return .teal
+        case .starz:         return Color(red: 0.1, green: 0.3, blue: 0.7)
+        case .mgmPlus:       return .orange
+        case .amcPlus:       return Color(red: 0.8, green: 0.1, blue: 0.1)
+        case .fx:            return .primary
+        case .crunchyroll:   return .orange
+        case .discoveryPlus: return .blue
+        case .espnPlus:      return .red
+        case .britbox:       return Color(red: 0.0, green: 0.35, blue: 0.75)
+        case .shudder:       return .purple
+        case .fubo:          return Color(red: 0.0, green: 0.6, blue: 0.3)
+        case .tubi:          return Color(red: 0.9, green: 0.1, blue: 0.4)
+        case .plutoTV:       return .indigo
+        case .nbc:           return Color(red: 0.9, green: 0.5, blue: 0.0)
+        case .abc:           return .secondary
+        case .cbs:           return .blue
+        case .fox:           return Color(red: 0.9, green: 0.6, blue: 0.0)
+        case .pbs:           return .blue
+        case .other, nil:    return .secondary
         }
     }
 }

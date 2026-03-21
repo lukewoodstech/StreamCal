@@ -114,7 +114,7 @@ struct ShowDetailView: View {
     private var showInfoSection: some View {
         Section("Info") {
             LabeledContent("Platform") {
-                PlatformBadge(platform: show.platform)
+                PlatformBadges(show: show)
             }
             if let status = show.showStatus, !status.isEmpty {
                 LabeledContent("Status", value: status)
