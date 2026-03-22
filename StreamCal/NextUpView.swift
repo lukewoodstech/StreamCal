@@ -87,6 +87,13 @@ struct NextUpView: View {
             .background(Color(.systemGroupedBackground))
             .safeAreaInset(edge: .top, spacing: 0) {
                 VStack(spacing: 0) {
+                    Text("Next Up")
+                        .font(.largeTitle)
+                        .fontWeight(.bold)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, 16)
+                        .padding(.top, 8)
+                        .padding(.bottom, 4)
                     Picker("Content Type", selection: $contentType) {
                         ForEach(LibraryContentType.allCases, id: \.self) { type in
                             Text(type.rawValue).tag(type)
@@ -94,14 +101,14 @@ struct NextUpView: View {
                     }
                     .pickerStyle(.segmented)
                     .padding(.horizontal, 16)
-                    .padding(.top, 8)
+                    .padding(.top, 4)
                     .padding(.bottom, 12)
                     Divider()
                 }
                 .background(Color(.systemGroupedBackground))
             }
-            .navigationTitle("Next Up")
-            .navigationBarTitleDisplayMode(.large)
+            .navigationTitle("")
+            .navigationBarTitleDisplayMode(.inline)
             .toolbarBackground(Color(.systemGroupedBackground), for: .navigationBar)
         }
     }
