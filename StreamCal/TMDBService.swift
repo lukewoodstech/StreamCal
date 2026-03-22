@@ -193,7 +193,9 @@ final class TMDBService: Sendable {
     private let session = URLSession.shared
 
     private func request(path: String, queryItems: [URLQueryItem] = []) throws -> URLRequest {
-        var components = URLComponents(string: baseURL + path)!
+        guard var components = URLComponents(string: baseURL + path) else {
+            throw URLError(.badURL)
+        }
         if !queryItems.isEmpty {
             components.queryItems = queryItems
         }

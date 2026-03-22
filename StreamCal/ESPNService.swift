@@ -127,7 +127,9 @@ final class ESPNService: Sendable {
     func fetchTeams(for config: ESPNLeagueConfig) async throws -> [ESPNTeam] {
         if let cached = await cache.teams(for: config.league) { return cached }
 
-        let url = URL(string: "\(baseURL)/\(config.sport)/\(config.league)/teams")!
+        guard let url = URL(string: "\(baseURL)/\(config.sport)/\(config.league)/teams") else {
+            throw URLError(.badURL)
+        }
         let (data, _) = try await session.data(from: url)
         let response = try JSONDecoder().decode(ESPNTeamsResponse.self, from: data)
 
@@ -174,7 +176,9 @@ final class ESPNService: Sendable {
 
     /// Fetch full team schedule. ESPN ID stored in team.sportsDBID, path in team.leagueID.
     func fetchSchedule(espnTeamID: String, sport: String, leaguePath: String) async throws -> [ESPNEvent] {
-        let url = URL(string: "\(baseURL)/\(sport)/\(leaguePath)/teams/\(espnTeamID)/schedule")!
+        guard let url = URL(string: "\(baseURL)/\(sport)/\(leaguePath)/teams/\(espnTeamID)/schedule") else {
+            throw URLError(.badURL)
+        }
         let (data, _) = try await session.data(from: url)
         let response = try JSONDecoder().decode(ESPNScheduleResponse.self, from: data)
         return response.events ?? []

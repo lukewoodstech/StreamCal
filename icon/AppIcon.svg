@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1D4ED8"/>
+      <stop offset="100%" stop-color="#6D28D9"/>
+    </linearGradient>
+    <linearGradient id="calFill" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.22"/>
+      <stop offset="100%" stop-color="#FFFFFF" stop-opacity="0.08"/>
+    </linearGradient>
+    <clipPath id="calClip">
+      <rect x="202" y="236" width="620" height="574" rx="72"/>
+    </clipPath>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1024" height="1024" fill="url(#bg)"/>
+
+  <!-- Calendar body (glass) -->
+  <rect x="202" y="236" width="620" height="574" rx="72" fill="url(#calFill)"/>
+  <rect x="202" y="236" width="620" height="574" rx="72" fill="none" stroke="white" stroke-width="6" stroke-opacity="0.3"/>
+
+  <!-- Calendar header band -->
+  <rect x="202" y="236" width="620" height="148" rx="72" fill="white" fill-opacity="0.18" clip-path="url(#calClip)"/>
+  <rect x="202" y="308" width="620" height="76" fill="white" fill-opacity="0.18" clip-path="url(#calClip)"/>
+
+  <!-- Binding clips -->
+  <rect x="362" y="188" width="56" height="112" rx="28" fill="white" fill-opacity="0.95"/>
+  <rect x="606" y="188" width="56" height="112" rx="28" fill="white" fill-opacity="0.95"/>
+
+  <!-- Subtle date grid dots -->
+  <g fill="white" fill-opacity="0.25">
+    <!-- Row 1 -->
+    <circle cx="300" cy="460" r="10"/>
+    <circle cx="390" cy="460" r="10"/>
+    <circle cx="480" cy="460" r="10"/>
+    <circle cx="570" cy="460" r="10"/>
+    <circle cx="660" cy="460" r="10"/>
+    <circle cx="750" cy="460" r="10"/>
+    <!-- Row 2 -->
+    <circle cx="300" cy="548" r="10"/>
+    <circle cx="750" cy="548" r="10"/>
+    <!-- Row 3 -->
+    <circle cx="300" cy="636" r="10"/>
+    <circle cx="390" cy="636" r="10"/>
+    <circle cx="750" cy="636" r="10"/>
+  </g>
+
+  <!-- Play button — centered in lower calendar area -->
+  <polygon points="442,468 442,692 658,580" fill="white" fill-opacity="0.97"/>
+
+  <!-- Subtle inner glow on play button -->
+  <polygon points="442,468 442,692 658,580" fill="none" stroke="white" stroke-width="3" stroke-opacity="0.4"/>
+</svg>

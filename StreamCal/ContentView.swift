@@ -8,8 +8,12 @@ enum LibraryContentType: String, CaseIterable {
 }
 
 struct ContentView: View {
+    @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
 
     var body: some View {
+        if !hasCompletedOnboarding {
+            OnboardingView()
+        } else {
         TabView {
             LibraryContainerView()
                 .tabItem {
@@ -31,6 +35,7 @@ struct ContentView: View {
                     Label("Settings", systemImage: "gearshape.fill")
                 }
         }
+        } // end onboarding check
     }
 }
 

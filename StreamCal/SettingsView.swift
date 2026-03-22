@@ -38,6 +38,24 @@ struct SettingsView: View {
                     LabeledContent("Version", value: "\(appVersion) (\(buildNumber))")
                     LabeledContent("Shows", value: "\(shows.count)")
                     LabeledContent("Episodes", value: "\(episodes.count)")
+                    Link(destination: URL(string: "https://lukewoodstech.github.io/streamcal-privacy")!) {
+                        HStack {
+                            Text("Privacy Policy")
+                            Spacer()
+                            Image(systemName: "arrow.up.right")
+                                .imageScale(.small)
+                                .foregroundStyle(.tertiary)
+                        }
+                    }
+                    Link(destination: URL(string: "mailto:luke@lukewoodstech.com")!) {
+                        HStack {
+                            Text("Contact / Support")
+                            Spacer()
+                            Image(systemName: "arrow.up.right")
+                                .imageScale(.small)
+                                .foregroundStyle(.tertiary)
+                        }
+                    }
                 }
 
                 Section("Notifications") {
