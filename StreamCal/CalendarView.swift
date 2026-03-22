@@ -50,7 +50,7 @@ struct CalendarView: View {
                             .fontWeight(.bold)
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .padding(.horizontal, 16)
-                            .padding(.top, 8)
+                            .padding(.top, 16)
                             .padding(.bottom, 4)
 
                         MonthGridView(
@@ -78,6 +78,7 @@ struct CalendarView: View {
                     .background(Color(.systemBackground))
                 }
                 .navigationBarTitleDisplayMode(.inline)
+                .toolbarBackground(.hidden, for: .navigationBar)
                 .onAppear {
                     selectedDate = nearestDate(from: today, in: episodesByDate) ?? today
                 }
