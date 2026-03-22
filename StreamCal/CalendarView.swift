@@ -42,17 +42,66 @@ struct CalendarView: View {
 
     var body: some View {
         NavigationStack {
-            dayPane
-                .safeAreaInset(edge: .top, spacing: 0) {
-                    VStack(spacing: 0) {
-                        Text("Calendar")
-                            .font(.largeTitle)
-                            .fontWeight(.bold)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(.horizontal, 16)
-                            .padding(.top, 20)
-                            .padding(.bottom, 12)
+            List {
+                Section {
+                    if !selectedHasContent {
+                        VStack(spacing: 10) {
+                            Image(systemName: "calendar.badge.clock")
+                                .font(.system(size: 40))
+                                .foregroundStyle(.tertiary)
+                            Text("Nothing Scheduled")
+                                .font(.headline)
+                                .foregroundStyle(.secondary)
+                            Text("Add shows to your library to see upcoming episodes.")
+                                .font(.subheadline)
+                                .foregroundStyle(.tertiary)
+                                .multilineTextAlignment(.center)
+                                .padding(.horizontal)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 48)
+                        .listRowBackground(Color.clear)
+                        .listRowSeparator(.hidden)
+                    } else {
+                        dayPaneHeader
+                            .padding(.vertical, 6)
+                            .listRowBackground(Color(.systemGroupedBackground))
+                            .listRowSeparator(.hidden)
 
+                        ForEach(selectedEpisodes) { episode in
+                            CalendarEpisodeRow(episode: episode)
+                        }
+
+                        if !selectedMovies.isEmpty {
+                            Text("Movies")
+                                .font(.footnote).fontWeight(.semibold)
+                                .foregroundStyle(.secondary)
+                                .textCase(nil)
+                                .padding(.top, 4)
+                                .listRowBackground(Color(.systemGroupedBackground))
+                                .listRowSeparator(.hidden)
+                            ForEach(selectedMovies) { movie in
+                                NavigationLink(destination: MovieDetailView(movie: movie)) {
+                                    CalendarMovieRow(movie: movie)
+                                }
+                            }
+                        }
+
+                        if !selectedGames.isEmpty {
+                            Text("Sports")
+                                .font(.footnote).fontWeight(.semibold)
+                                .foregroundStyle(.secondary)
+                                .textCase(nil)
+                                .padding(.top, 4)
+                                .listRowBackground(Color(.systemGroupedBackground))
+                                .listRowSeparator(.hidden)
+                            ForEach(selectedGames) { game in
+                                CalendarGameRow(game: game)
+                            }
+                        }
+                    }
+                } header: {
+                    VStack(spacing: 0) {
                         MonthGridView(
                             displayedMonth: $displayedMonth,
                             selectedDate: $selectedDate,
@@ -71,23 +120,28 @@ struct CalendarView: View {
                             }
                         )
                         .padding(.horizontal, 16)
+                        .padding(.top, 4)
                         .padding(.bottom, 8)
-
                         Divider()
                     }
                     .background(Color(.systemGroupedBackground))
                 }
-                .navigationTitle("")
-                .navigationBarTitleDisplayMode(.inline)
-                .toolbarBackground(Color(.systemGroupedBackground), for: .navigationBar)
-                .onAppear {
+            }
+            .listStyle(.plain)
+            .scrollContentBackground(.hidden)
+            .background(Color(.systemGroupedBackground))
+            .navigationTitle("Calendar")
+            .navigationBarTitleDisplayMode(.large)
+            .toolbarBackground(Color(.systemGroupedBackground), for: .navigationBar)
+            .refreshable { await refreshAll() }
+            .onAppear {
+                selectedDate = nearestDate(from: today, in: episodesByDate) ?? today
+            }
+            .onChange(of: episodesByDate.keys.count) {
+                if !selectedHasContent {
                     selectedDate = nearestDate(from: today, in: episodesByDate) ?? today
                 }
-                .onChange(of: episodesByDate.keys.count) {
-                    if !selectedHasContent {
-                        selectedDate = nearestDate(from: today, in: episodesByDate) ?? today
-                    }
-                }
+            }
         }
     }
 
@@ -103,50 +157,6 @@ struct CalendarView: View {
         guard let monthEnd = cal.date(byAdding: .month, value: 1, to: monthStart) else { return nil }
         let sorted = dict.keys.filter { $0 >= monthStart && $0 < monthEnd }.sorted()
         return sorted.first
-    }
-
-    // MARK: - Day Pane
-
-    private var dayPane: some View {
-        Group {
-            if !selectedHasContent {
-                nothingScheduledView
-            } else {
-                List {
-                    if !selectedEpisodes.isEmpty {
-                        Section {
-                            ForEach(selectedEpisodes) { episode in
-                                CalendarEpisodeRow(episode: episode)
-                            }
-                        } header: {
-                            dayPaneHeader
-                        }
-                    } else {
-                        Section { EmptyView() } header: { dayPaneHeader }
-                    }
-
-                    if !selectedMovies.isEmpty {
-                        Section("Movies") {
-                            ForEach(selectedMovies) { movie in
-                                NavigationLink(destination: MovieDetailView(movie: movie)) {
-                                    CalendarMovieRow(movie: movie)
-                                }
-                            }
-                        }
-                    }
-
-                    if !selectedGames.isEmpty {
-                        Section("Sports") {
-                            ForEach(selectedGames) { game in
-                                CalendarGameRow(game: game)
-                            }
-                        }
-                    }
-                }
-                .listStyle(.insetGrouped)
-                .refreshable { await refreshAll() }
-            }
-        }
     }
 
     private func refreshAll() async {
@@ -177,13 +187,6 @@ struct CalendarView: View {
         return selectedDate.formatted(.dateTime.weekday(.wide).month(.abbreviated).day())
     }
 
-    private var nothingScheduledView: some View {
-        ContentUnavailableView(
-            "Nothing Scheduled",
-            systemImage: "calendar.badge.clock",
-            description: Text("Add shows to your library to see upcoming episodes.")
-        )
-    }
 }
 
 // MARK: - Month Grid
