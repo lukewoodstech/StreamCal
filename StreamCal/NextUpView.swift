@@ -112,11 +112,7 @@ struct NextUpView: View {
             .toolbarBackground(Color(.systemGroupedBackground), for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        Task { await refreshAll() }
-                    } label: {
-                        Image(systemName: "arrow.clockwise")
-                    }
+                    Color.clear.frame(width: 28, height: 28)
                 }
             }
         }
