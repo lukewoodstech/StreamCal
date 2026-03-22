@@ -4,6 +4,7 @@ import SwiftData
 struct NextUpView: View {
 
     @Environment(\.modelContext) private var modelContext
+    @State private var contentType: LibraryContentType = .shows
 
     @Query(sort: \Show.title)
     private var shows: [Show]
@@ -67,9 +68,11 @@ struct NextUpView: View {
     }
 
     private var hasUpcomingContent: Bool {
-        !airingToday.isEmpty || !thisWeek.isEmpty || !comingSoon.isEmpty || !dateTBA.isEmpty ||
-        !moviesInTheaters.isEmpty || !moviesComingSoon.isEmpty || !moviesStreamingSoon.isEmpty ||
-        !gamesToday.isEmpty || !gamesThisWeek.isEmpty || !gamesUpcoming.isEmpty
+        switch contentType {
+        case .shows:  return !airingToday.isEmpty || !thisWeek.isEmpty || !comingSoon.isEmpty || !dateTBA.isEmpty
+        case .movies: return !moviesInTheaters.isEmpty || !moviesComingSoon.isEmpty || !moviesStreamingSoon.isEmpty
+        case .sports: return !gamesToday.isEmpty || !gamesThisWeek.isEmpty || !gamesUpcoming.isEmpty
+        }
     }
 
     var body: some View {
@@ -82,6 +85,21 @@ struct NextUpView: View {
                 }
             }
             .background(Color(.systemGroupedBackground))
+            .safeAreaInset(edge: .top, spacing: 0) {
+                VStack(spacing: 0) {
+                    Picker("Content Type", selection: $contentType) {
+                        ForEach(LibraryContentType.allCases, id: \.self) { type in
+                            Text(type.rawValue).tag(type)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    .padding(.horizontal, 16)
+                    .padding(.top, 8)
+                    .padding(.bottom, 12)
+                    Divider()
+                }
+                .background(Color(.systemGroupedBackground))
+            }
             .navigationTitle("Next Up")
             .navigationBarTitleDisplayMode(.large)
             .toolbarBackground(Color(.systemGroupedBackground), for: .navigationBar)
@@ -91,151 +109,142 @@ struct NextUpView: View {
     // MARK: - No Upcoming
 
     private var noUpcomingView: some View {
-        ContentUnavailableView(
-            "Nothing Upcoming",
-            systemImage: "calendar",
-            description: Text("Add shows, movies, and teams to see what's coming up.")
-        )
-        .refreshable {
-            await refreshAll()
+        Group {
+            switch contentType {
+            case .shows:
+                ContentUnavailableView("Nothing Upcoming", systemImage: "play.circle",
+                    description: Text("Add shows to your library to see upcoming episodes."))
+            case .movies:
+                ContentUnavailableView("No Movies Upcoming", systemImage: "film",
+                    description: Text("Add movies to track their release dates."))
+            case .sports:
+                ContentUnavailableView("No Games Upcoming", systemImage: "sportscourt",
+                    description: Text("Follow teams to see their upcoming games."))
+            }
         }
+        .refreshable { await refreshAll() }
     }
 
     // MARK: - Main list
 
     private var list: some View {
         List {
-            // --- TV ---
-            if !airingToday.isEmpty {
-                Section {
-                    ForEach(airingToday, id: \.episode.persistentModelID) { item in
-                        EpisodeCard(show: item.show, episode: item.episode)
-                            .swipeActions(edge: .leading) {
-                                watchedButton(item.episode, item.show)
+            switch contentType {
+            case .shows:
+                if !airingToday.isEmpty {
+                    Section {
+                        ForEach(airingToday, id: \.episode.persistentModelID) { item in
+                            EpisodeCard(show: item.show, episode: item.episode)
+                                .swipeActions(edge: .leading) { watchedButton(item.episode, item.show) }
+                        }
+                    } header: {
+                        NextUpSectionHeader(title: "Airing Today", icon: "star.fill", color: .orange)
+                    }
+                }
+                if !thisWeek.isEmpty {
+                    Section {
+                        ForEach(thisWeek, id: \.episode.persistentModelID) { item in
+                            EpisodeCard(show: item.show, episode: item.episode)
+                                .swipeActions(edge: .leading) { watchedButton(item.episode, item.show) }
+                        }
+                    } header: {
+                        NextUpSectionHeader(title: "This Week", icon: "calendar", color: .blue)
+                    }
+                }
+                if !comingSoon.isEmpty {
+                    Section {
+                        ForEach(comingSoon, id: \.episode.persistentModelID) { item in
+                            EpisodeCard(show: item.show, episode: item.episode)
+                                .swipeActions(edge: .leading) { watchedButton(item.episode, item.show) }
+                        }
+                    } header: {
+                        NextUpSectionHeader(title: "Coming Soon", icon: "clock", color: .secondary)
+                    }
+                }
+                if !dateTBA.isEmpty {
+                    Section {
+                        ForEach(dateTBA, id: \.episode.persistentModelID) { item in
+                            EpisodeCard(show: item.show, episode: item.episode)
+                                .swipeActions(edge: .leading) { watchedButton(item.episode, item.show) }
+                        }
+                    } header: {
+                        NextUpSectionHeader(title: "Date TBA", icon: "calendar.badge.clock", color: .secondary)
+                    }
+                }
+
+            case .movies:
+                if !moviesInTheaters.isEmpty {
+                    Section {
+                        ForEach(moviesInTheaters) { movie in
+                            NavigationLink(destination: MovieDetailView(movie: movie)) {
+                                MovieCard(movie: movie)
                             }
+                        }
+                    } header: {
+                        NextUpSectionHeader(title: "In Theaters", icon: "film.fill", color: DS.Color.movieTheaterRed)
                     }
-                } header: {
-                    NextUpSectionHeader(title: "Airing Today", icon: "star.fill", color: .orange)
                 }
-            }
-
-            if !thisWeek.isEmpty {
-                Section {
-                    ForEach(thisWeek, id: \.episode.persistentModelID) { item in
-                        EpisodeCard(show: item.show, episode: item.episode)
-                            .swipeActions(edge: .leading) {
-                                watchedButton(item.episode, item.show)
+                if !moviesComingSoon.isEmpty {
+                    Section {
+                        ForEach(moviesComingSoon) { movie in
+                            NavigationLink(destination: MovieDetailView(movie: movie)) {
+                                MovieCard(movie: movie)
                             }
+                        }
+                    } header: {
+                        NextUpSectionHeader(title: "Coming to Theaters", icon: "ticket.fill", color: .secondary)
                     }
-                } header: {
-                    NextUpSectionHeader(title: "This Week", icon: "calendar", color: .blue)
                 }
-            }
-
-            if !comingSoon.isEmpty {
-                Section {
-                    ForEach(comingSoon, id: \.episode.persistentModelID) { item in
-                        EpisodeCard(show: item.show, episode: item.episode)
-                            .swipeActions(edge: .leading) {
-                                watchedButton(item.episode, item.show)
+                if !moviesStreamingSoon.isEmpty {
+                    Section {
+                        ForEach(moviesStreamingSoon) { movie in
+                            NavigationLink(destination: MovieDetailView(movie: movie)) {
+                                MovieCard(movie: movie)
                             }
+                        }
+                    } header: {
+                        NextUpSectionHeader(title: "Now Streaming", icon: "play.circle.fill", color: .blue)
                     }
-                } header: {
-                    NextUpSectionHeader(title: "Coming Soon", icon: "clock", color: .secondary)
                 }
-            }
 
-            if !dateTBA.isEmpty {
-                Section {
-                    ForEach(dateTBA, id: \.episode.persistentModelID) { item in
-                        EpisodeCard(show: item.show, episode: item.episode)
-                            .swipeActions(edge: .leading) {
-                                watchedButton(item.episode, item.show)
+            case .sports:
+                if !gamesToday.isEmpty {
+                    Section {
+                        ForEach(gamesToday) { game in
+                            NavigationLink(destination: TeamDetailView(team: game.team ?? SportTeam(name: "", sportsDBID: "", sport: "", league: ""))) {
+                                UpcomingGameRow(game: game)
                             }
-                    }
-                } header: {
-                    NextUpSectionHeader(title: "Date TBA", icon: "calendar.badge.clock", color: .secondary)
-                }
-            }
-
-            // --- Games ---
-            if !gamesToday.isEmpty {
-                Section {
-                    ForEach(gamesToday) { game in
-                        NavigationLink(destination: TeamDetailView(team: game.team ?? SportTeam(name: "", sportsDBID: "", sport: "", league: ""))) {
-                            UpcomingGameRow(game: game)
                         }
+                    } header: {
+                        NextUpSectionHeader(title: "Games Today", icon: "sportscourt.fill", color: .orange)
                     }
-                } header: {
-                    NextUpSectionHeader(title: "Games Today", icon: "sportscourt.fill", color: .orange)
                 }
-            }
-
-            if !gamesThisWeek.isEmpty {
-                Section {
-                    ForEach(gamesThisWeek) { game in
-                        NavigationLink(destination: TeamDetailView(team: game.team ?? SportTeam(name: "", sportsDBID: "", sport: "", league: ""))) {
-                            UpcomingGameRow(game: game)
+                if !gamesThisWeek.isEmpty {
+                    Section {
+                        ForEach(gamesThisWeek) { game in
+                            NavigationLink(destination: TeamDetailView(team: game.team ?? SportTeam(name: "", sportsDBID: "", sport: "", league: ""))) {
+                                UpcomingGameRow(game: game)
+                            }
                         }
+                    } header: {
+                        NextUpSectionHeader(title: "Games This Week", icon: "calendar", color: .blue)
                     }
-                } header: {
-                    NextUpSectionHeader(title: "Games This Week", icon: "calendar", color: .blue)
                 }
-            }
-
-            if !gamesUpcoming.isEmpty {
-                Section {
-                    ForEach(gamesUpcoming) { game in
-                        NavigationLink(destination: TeamDetailView(team: game.team ?? SportTeam(name: "", sportsDBID: "", sport: "", league: ""))) {
-                            UpcomingGameRow(game: game)
+                if !gamesUpcoming.isEmpty {
+                    Section {
+                        ForEach(gamesUpcoming) { game in
+                            NavigationLink(destination: TeamDetailView(team: game.team ?? SportTeam(name: "", sportsDBID: "", sport: "", league: ""))) {
+                                UpcomingGameRow(game: game)
+                            }
                         }
+                    } header: {
+                        NextUpSectionHeader(title: "Upcoming Games", icon: "clock", color: .secondary)
                     }
-                } header: {
-                    NextUpSectionHeader(title: "Upcoming Games", icon: "clock", color: .secondary)
-                }
-            }
-
-            // --- Movies ---
-            if !moviesInTheaters.isEmpty {
-                Section {
-                    ForEach(moviesInTheaters) { movie in
-                        NavigationLink(destination: MovieDetailView(movie: movie)) {
-                            MovieCard(movie: movie)
-                        }
-                    }
-                } header: {
-                    NextUpSectionHeader(title: "In Theaters", icon: "film.fill", color: DS.Color.movieTheaterRed)
-                }
-            }
-
-            if !moviesComingSoon.isEmpty {
-                Section {
-                    ForEach(moviesComingSoon) { movie in
-                        NavigationLink(destination: MovieDetailView(movie: movie)) {
-                            MovieCard(movie: movie)
-                        }
-                    }
-                } header: {
-                    NextUpSectionHeader(title: "Coming to Theaters", icon: "ticket.fill", color: .secondary)
-                }
-            }
-
-            if !moviesStreamingSoon.isEmpty {
-                Section {
-                    ForEach(moviesStreamingSoon) { movie in
-                        NavigationLink(destination: MovieDetailView(movie: movie)) {
-                            MovieCard(movie: movie)
-                        }
-                    }
-                } header: {
-                    NextUpSectionHeader(title: "Now Streaming", icon: "play.circle.fill", color: .blue)
                 }
             }
         }
         .listStyle(.insetGrouped)
-        .refreshable {
-            await refreshAll()
-        }
+        .refreshable { await refreshAll() }
     }
 
     // MARK: - Helpers
