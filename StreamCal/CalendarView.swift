@@ -45,6 +45,14 @@ struct CalendarView: View {
             dayPane
                 .safeAreaInset(edge: .top, spacing: 0) {
                     VStack(spacing: 0) {
+                        Text("Calendar")
+                            .font(.largeTitle)
+                            .fontWeight(.bold)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.horizontal, 16)
+                            .padding(.top, 8)
+                            .padding(.bottom, 4)
+
                         MonthGridView(
                             displayedMonth: $displayedMonth,
                             selectedDate: $selectedDate,
@@ -69,8 +77,7 @@ struct CalendarView: View {
                     }
                     .background(Color(.systemBackground))
                 }
-                .navigationTitle("Calendar")
-                .navigationBarTitleDisplayMode(.large)
+                .navigationBarTitleDisplayMode(.inline)
                 .onAppear {
                     selectedDate = nearestDate(from: today, in: episodesByDate) ?? today
                 }
