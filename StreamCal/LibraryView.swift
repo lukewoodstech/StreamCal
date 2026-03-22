@@ -148,7 +148,8 @@ struct LibraryView: View {
                     Button {
                         showingAddShow = true
                     } label: {
-                        Image(systemName: "plus")
+                        Image(systemName: "plus.circle.fill")
+                            .font(.title2)
                     }
                 }
             }
@@ -276,7 +277,7 @@ struct ShowRowView: View {
                         .aspectRatio(contentMode: .fill)
                 case .failure, .empty:
                     Rectangle()
-                        .foregroundStyle(Color(.systemGray5))
+                        .foregroundStyle(DS.Color.imagePlaceholder)
                         .overlay {
                             Image(systemName: "tv")
                                 .foregroundStyle(.tertiary)
@@ -284,11 +285,11 @@ struct ShowRowView: View {
                         }
                 @unknown default:
                     Rectangle()
-                        .foregroundStyle(Color(.systemGray5))
+                        .foregroundStyle(DS.Color.imagePlaceholder)
                 }
             }
             .frame(width: 44, height: 66)
-            .clipShape(RoundedRectangle(cornerRadius: 6))
+            .clipShape(RoundedRectangle(cornerRadius: DS.Radius.sm))
 
             VStack(alignment: .leading, spacing: 5) {
                 HStack(alignment: .firstTextBaseline) {

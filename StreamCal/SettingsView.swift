@@ -148,7 +148,7 @@ struct SettingsView: View {
                     }
                     .padding(20)
                     .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
-                    .shadow(color: .black.opacity(0.25), radius: 20, y: 10)
+                    .heavyShadow()
                     .padding(.horizontal, 32)
                     .transition(.scale.combined(with: .opacity))
                 }
@@ -211,7 +211,7 @@ struct SettingsView: View {
                     .padding(.horizontal, 16)
                     .padding(.vertical, 12)
                     .background(.regularMaterial, in: Capsule())
-                    .shadow(color: .black.opacity(0.12), radius: 8, y: 4)
+                    .lightShadow()
                     .padding(.top, 8)
                     .transition(.move(edge: .top).combined(with: .opacity))
                 }

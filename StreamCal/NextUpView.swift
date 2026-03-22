@@ -83,6 +83,7 @@ struct NextUpView: View {
             }
             .navigationTitle("Next Up")
             .navigationBarTitleDisplayMode(.large)
+            .toolbarBackground(Color(.systemGroupedBackground), for: .navigationBar)
         }
     }
 
@@ -230,7 +231,7 @@ struct NextUpView: View {
                 }
             }
         }
-        .listStyle(.plain)
+        .listStyle(.insetGrouped)
         .refreshable {
             await refreshAll()
         }
@@ -275,8 +276,8 @@ struct NextUpSectionHeader: View {
                 .fontWeight(.semibold)
             Spacer()
         }
-        .padding(.top, 24)
-        .padding(.bottom, 10)
+        .padding(.top, 8)
+        .padding(.bottom, 2)
     }
 }
 
@@ -309,17 +310,17 @@ struct EpisodeCard: View {
                     image.resizable().aspectRatio(contentMode: .fill)
                 case .failure, .empty:
                     Rectangle()
-                        .foregroundStyle(Color(.systemGray5))
+                        .foregroundStyle(DS.Color.imagePlaceholder)
                         .overlay {
                             Image(systemName: "tv")
                                 .foregroundStyle(.tertiary)
                         }
                 @unknown default:
-                    Rectangle().foregroundStyle(Color(.systemGray5))
+                    Rectangle().foregroundStyle(DS.Color.imagePlaceholder)
                 }
             }
             .frame(width: 54, height: 81)
-            .clipShape(RoundedRectangle(cornerRadius: 8))
+            .clipShape(RoundedRectangle(cornerRadius: DS.Radius.md))
 
             VStack(alignment: .leading, spacing: 5) {
                 HStack(alignment: .top) {

@@ -75,7 +75,7 @@ struct CalendarView: View {
 
                         Divider()
                     }
-                    .background(Color(.systemBackground))
+                    .background(Color(.systemGroupedBackground))
                 }
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbarBackground(.hidden, for: .navigationBar)
@@ -391,8 +391,8 @@ struct CalendarEpisodeRow: View {
                 case .success(let image):
                     image.resizable().aspectRatio(contentMode: .fill)
                 default:
-                    RoundedRectangle(cornerRadius: 4)
-                        .foregroundStyle(Color(.systemGray5))
+                    RoundedRectangle(cornerRadius: DS.Radius.xs)
+                        .foregroundStyle(DS.Color.imagePlaceholder)
                         .overlay {
                             Image(systemName: "tv")
                                 .foregroundStyle(.tertiary)
@@ -401,7 +401,7 @@ struct CalendarEpisodeRow: View {
                 }
             }
             .frame(width: 30, height: 44)
-            .clipShape(RoundedRectangle(cornerRadius: 4))
+            .clipShape(RoundedRectangle(cornerRadius: DS.Radius.xs))
             .overlay(
                 RoundedRectangle(cornerRadius: 4)
                     .stroke(isToday ? Color.orange : Color.clear, lineWidth: 2)
