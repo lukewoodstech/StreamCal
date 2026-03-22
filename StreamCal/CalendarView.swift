@@ -484,7 +484,6 @@ struct CalendarMovieRow: View {
 
 struct CalendarGameRow: View {
     let game: SportGame
-    private var isToday: Bool { Calendar.current.isDateInToday(game.gameDate) }
 
     var body: some View {
         HStack(spacing: 12) {
@@ -500,8 +499,6 @@ struct CalendarGameRow: View {
             }
             .frame(width: 30, height: 44)
             .clipShape(RoundedRectangle(cornerRadius: DS.Radius.xs))
-            .overlay(RoundedRectangle(cornerRadius: DS.Radius.xs)
-                .stroke(isToday ? Color.green : Color.clear, lineWidth: 2))
 
             VStack(alignment: .leading, spacing: 3) {
                 Text(game.displayTitle)
