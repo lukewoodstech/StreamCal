@@ -50,7 +50,7 @@ struct CalendarView: View {
                             .fontWeight(.bold)
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .padding(.horizontal, 16)
-                            .padding(.top, 8)
+                            .padding(.top, 20)
                             .padding(.bottom, 12)
 
                         MonthGridView(
