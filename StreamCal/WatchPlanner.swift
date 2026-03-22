@@ -182,7 +182,7 @@ final class WatchPlanner {
         var isEmpty: Bool { episodes.isEmpty && movies.isEmpty && games.isEmpty }
     }
 
-    /// Groups episodes, movies, and games into calendar days: today through 60 days forward.
+    /// Groups episodes, movies, and games into calendar days: today through 120 days forward.
     /// Excludes archived shows/movies, watched episodes, and TBA dates.
     /// Sorted by date ascending.
     static func calendarDays(
@@ -192,7 +192,7 @@ final class WatchPlanner {
     ) -> [CalendarDay] {
         let cal = Calendar.current
         let today = cal.startOfDay(for: .now)
-        guard let end = cal.date(byAdding: .day, value: 60, to: today) else { return [] }
+        guard let end = cal.date(byAdding: .day, value: 120, to: today) else { return [] }
 
         // Episodes
         let windowed = episodes.filter {
