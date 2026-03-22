@@ -2,9 +2,11 @@ import Foundation
 import UserNotifications
 import SwiftData
 
-actor NotificationService {
+@MainActor
+final class NotificationService {
 
     static let shared = NotificationService()
+    private init() {}
 
     private let center = UNUserNotificationCenter.current()
 
