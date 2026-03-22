@@ -53,19 +53,32 @@ struct LibraryContainerView: View {
                 case .sports:  SportsView()
                 }
             }
-            .navigationTitle("Library")
-            .navigationBarTitleDisplayMode(.large)
-            .toolbar {
-                ToolbarItem(placement: .principal) {
+            .background(Color(.systemGroupedBackground))
+            .safeAreaInset(edge: .top, spacing: 0) {
+                VStack(spacing: 0) {
+                    Text("Library")
+                        .font(.largeTitle)
+                        .fontWeight(.bold)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, 16)
+                        .padding(.top, 8)
+                        .padding(.bottom, 4)
                     Picker("Content Type", selection: $contentType) {
                         ForEach(LibraryContentType.allCases, id: \.self) { type in
                             Text(type.rawValue).tag(type)
                         }
                     }
                     .pickerStyle(.segmented)
-                    .frame(maxWidth: 260)
+                    .padding(.horizontal, 16)
+                    .padding(.top, 4)
+                    .padding(.bottom, 12)
+                    Divider()
                 }
+                .background(Color(.systemGroupedBackground))
             }
+            .navigationTitle("")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbarBackground(Color(.systemGroupedBackground), for: .navigationBar)
         }
     }
 }

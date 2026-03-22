@@ -50,8 +50,8 @@ struct CalendarView: View {
                             .fontWeight(.bold)
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .padding(.horizontal, 16)
-                            .padding(.top, 16)
-                            .padding(.bottom, 4)
+                            .padding(.top, 8)
+                            .padding(.bottom, 12)
 
                         MonthGridView(
                             displayedMonth: $displayedMonth,

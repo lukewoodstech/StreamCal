@@ -81,6 +81,7 @@ struct NextUpView: View {
                     list
                 }
             }
+            .background(Color(.systemGroupedBackground))
             .navigationTitle("Next Up")
             .navigationBarTitleDisplayMode(.large)
             .toolbarBackground(Color(.systemGroupedBackground), for: .navigationBar)
