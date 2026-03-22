@@ -63,41 +63,68 @@ struct CalendarView: View {
                         .listRowBackground(Color.clear)
                         .listRowSeparator(.hidden)
                     } else {
+                        // Date label
                         dayPaneHeader
-                            .padding(.vertical, 6)
+                            .padding(.horizontal, 4)
+                            .padding(.vertical, 2)
                             .listRowBackground(Color(.systemGroupedBackground))
                             .listRowSeparator(.hidden)
 
-                        ForEach(selectedEpisodes) { episode in
-                            CalendarEpisodeRow(episode: episode)
-                        }
-
-                        if !selectedMovies.isEmpty {
-                            Text("Movies")
-                                .font(.footnote).fontWeight(.semibold)
-                                .foregroundStyle(.secondary)
-                                .textCase(nil)
-                                .padding(.top, 4)
-                                .listRowBackground(Color(.systemGroupedBackground))
-                                .listRowSeparator(.hidden)
-                            ForEach(selectedMovies) { movie in
-                                NavigationLink(destination: MovieDetailView(movie: movie)) {
-                                    CalendarMovieRow(movie: movie)
+                        // Episodes card
+                        if !selectedEpisodes.isEmpty {
+                            VStack(spacing: 0) {
+                                ForEach(Array(selectedEpisodes.enumerated()), id: \.element.persistentModelID) { index, episode in
+                                    CalendarEpisodeRow(episode: episode)
+                                        .padding(.horizontal, 16)
+                                    if index < selectedEpisodes.count - 1 {
+                                        Divider().padding(.leading, 74)
+                                    }
                                 }
                             }
+                            .background(Color(.systemBackground))
+                            .clipShape(RoundedRectangle(cornerRadius: DS.Radius.md, style: .continuous))
+                            .listRowBackground(Color.clear)
+                            .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
+                            .listRowSeparator(.hidden)
                         }
 
-                        if !selectedGames.isEmpty {
-                            Text("Sports")
-                                .font(.footnote).fontWeight(.semibold)
-                                .foregroundStyle(.secondary)
-                                .textCase(nil)
-                                .padding(.top, 4)
-                                .listRowBackground(Color(.systemGroupedBackground))
-                                .listRowSeparator(.hidden)
-                            ForEach(selectedGames) { game in
-                                CalendarGameRow(game: game)
+                        // Movies card
+                        if !selectedMovies.isEmpty {
+                            VStack(spacing: 0) {
+                                ForEach(Array(selectedMovies.enumerated()), id: \.element.persistentModelID) { index, movie in
+                                    NavigationLink(destination: MovieDetailView(movie: movie)) {
+                                        CalendarMovieRow(movie: movie)
+                                            .padding(.horizontal, 16)
+                                    }
+                                    .buttonStyle(.plain)
+                                    if index < selectedMovies.count - 1 {
+                                        Divider().padding(.leading, 58)
+                                    }
+                                }
                             }
+                            .background(Color(.systemBackground))
+                            .clipShape(RoundedRectangle(cornerRadius: DS.Radius.md, style: .continuous))
+                            .listRowBackground(Color.clear)
+                            .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
+                            .listRowSeparator(.hidden)
+                        }
+
+                        // Games card
+                        if !selectedGames.isEmpty {
+                            VStack(spacing: 0) {
+                                ForEach(Array(selectedGames.enumerated()), id: \.element.persistentModelID) { index, game in
+                                    CalendarGameRow(game: game)
+                                        .padding(.horizontal, 16)
+                                    if index < selectedGames.count - 1 {
+                                        Divider().padding(.leading, 58)
+                                    }
+                                }
+                            }
+                            .background(Color(.systemBackground))
+                            .clipShape(RoundedRectangle(cornerRadius: DS.Radius.md, style: .continuous))
+                            .listRowBackground(Color.clear)
+                            .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
+                            .listRowSeparator(.hidden)
                         }
                     }
                 } header: {
