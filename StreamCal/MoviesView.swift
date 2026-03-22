@@ -61,7 +61,8 @@ struct MoviesView: View {
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Button { showingAddMovie = true } label: {
-                    Image(systemName: "plus")
+                    Image(systemName: "plus.circle.fill")
+                        .font(.title2)
                 }
             }
         }

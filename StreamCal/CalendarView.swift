@@ -98,7 +98,7 @@ struct CalendarView: View {
                                     }
                                     .buttonStyle(.plain)
                                     if index < selectedMovies.count - 1 {
-                                        Divider().padding(.leading, 58)
+                                        Divider().padding(.leading, 74)
                                     }
                                 }
                             }
@@ -116,7 +116,7 @@ struct CalendarView: View {
                                     CalendarGameRow(game: game)
                                         .padding(.horizontal, 16)
                                     if index < selectedGames.count - 1 {
-                                        Divider().padding(.leading, 58)
+                                        Divider().padding(.leading, 74)
                                     }
                                 }
                             }
@@ -405,7 +405,6 @@ struct CalendarEpisodeRow: View {
     @Bindable var episode: Episode
 
     private var show: Show? { episode.show }
-
     private var cal: Calendar { Calendar.current }
     private var isToday: Bool { cal.isDateInToday(episode.airDate) }
 
@@ -415,67 +414,52 @@ struct CalendarEpisodeRow: View {
     }
 
     var body: some View {
-        HStack(spacing: 12) {
-            // Poster thumbnail — same height as before, orange border for today's drops
+        HStack(spacing: 14) {
             CachedAsyncImage(url: posterURL) { phase in
                 switch phase {
                 case .success(let image):
                     image.resizable().aspectRatio(contentMode: .fill)
-                default:
-                    RoundedRectangle(cornerRadius: DS.Radius.xs)
+                case .failure, .empty:
+                    Rectangle()
                         .foregroundStyle(DS.Color.imagePlaceholder)
                         .overlay {
-                            Image(systemName: "tv")
-                                .foregroundStyle(.tertiary)
-                                .imageScale(.small)
+                            Image(systemName: "tv").foregroundStyle(.tertiary)
                         }
+                @unknown default:
+                    Rectangle().foregroundStyle(DS.Color.imagePlaceholder)
                 }
             }
-            .frame(width: 30, height: 44)
-            .clipShape(RoundedRectangle(cornerRadius: DS.Radius.xs))
-            .overlay(
-                RoundedRectangle(cornerRadius: 4)
-                    .stroke(isToday ? Color.orange : Color.clear, lineWidth: 2)
-            )
+            .frame(width: 44, height: 66)
+            .clipShape(RoundedRectangle(cornerRadius: DS.Radius.sm))
 
-            VStack(alignment: .leading, spacing: 3) {
-                HStack(alignment: .firstTextBaseline) {
+            VStack(alignment: .leading, spacing: 5) {
+                HStack(alignment: .top) {
                     Text(show?.title ?? "Unknown Show")
-                        .font(.subheadline)
-                        .fontWeight(.medium)
+                        .font(.headline)
                         .lineLimit(1)
                     Spacer()
-                    if let show {
-                        PlatformBadges(show: show)
-                    }
+                    if let show { PlatformBadges(show: show) }
                 }
                 Text(episode.displayTitle)
-                    .font(.caption)
-                    .foregroundStyle(.tertiary)
-                    .lineLimit(1)
-            }
-
-            Spacer()
-        }
-        .padding(.vertical, 2)
-        .contextMenu {
-            if let show {
-                EpisodeContextMenuItems(episode: episode, show: show)
-            }
-        }
-        .swipeActions(edge: .leading) {
-            Button {
-                episode.isWatched.toggle()
-                if let show {
-                    Task { await NotificationService.shared.scheduleNotifications(for: show) }
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+                Spacer(minLength: 0)
+                if isToday {
+                    Label("New today", systemImage: "star.fill")
+                        .font(.caption).fontWeight(.semibold)
+                        .foregroundStyle(.orange)
+                } else {
+                    HStack(spacing: 4) {
+                        Image(systemName: "calendar").imageScale(.small).foregroundStyle(.tertiary)
+                        Text(episode.airDate, style: .date).font(.caption).foregroundStyle(.secondary)
+                    }
                 }
-            } label: {
-                Label(
-                    episode.isWatched ? "Unwatch" : "Watched",
-                    systemImage: episode.isWatched ? "eye.slash" : "checkmark"
-                )
             }
-            .tint(episode.isWatched ? .gray : .green)
+            .padding(.vertical, 14)
+        }
+        .contextMenu {
+            if let show { EpisodeContextMenuItems(episode: episode, show: show) }
         }
     }
 }
@@ -484,38 +468,46 @@ struct CalendarEpisodeRow: View {
 
 struct CalendarMovieRow: View {
     let movie: Movie
-    private var isToday: Bool { Calendar.current.isDateInToday(movie.primaryCalendarDate) }
 
     var body: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: 14) {
             CachedAsyncImage(url: movie.posterImageURL.flatMap {
                 URL(string: $0.absoluteString.replacingOccurrences(of: "/w300", with: "/w92"))
             }) { phase in
                 switch phase {
                 case .success(let image): image.resizable().aspectRatio(contentMode: .fill)
-                default:
-                    RoundedRectangle(cornerRadius: DS.Radius.xs)
+                case .failure, .empty:
+                    Rectangle()
                         .foregroundStyle(DS.Color.imagePlaceholder)
-                        .overlay { Image(systemName: "film").foregroundStyle(.tertiary).imageScale(.small) }
+                        .overlay { Image(systemName: "film").foregroundStyle(.tertiary) }
+                @unknown default:
+                    Rectangle().foregroundStyle(DS.Color.imagePlaceholder)
                 }
             }
-            .frame(width: 30, height: 44)
-            .clipShape(RoundedRectangle(cornerRadius: DS.Radius.xs))
-            .overlay(RoundedRectangle(cornerRadius: 4)
-                .stroke(isToday ? DS.Color.movieTheaterRed : Color.clear, lineWidth: 2))
+            .frame(width: 44, height: 66)
+            .clipShape(RoundedRectangle(cornerRadius: DS.Radius.sm))
 
-            VStack(alignment: .leading, spacing: 3) {
+            VStack(alignment: .leading, spacing: 5) {
                 Text(movie.title)
-                    .font(.subheadline)
-                    .fontWeight(.medium)
+                    .font(.headline)
                     .lineLimit(1)
-                Text(movie.releaseStatus == .streaming ? "Streaming now" : "In theaters")
-                    .font(.caption)
-                    .foregroundStyle(.tertiary)
+                if let overview = movie.overview, !overview.isEmpty {
+                    Text(overview)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(2)
+                }
+                Spacer(minLength: 0)
+                if movie.releaseStatus == .streaming {
+                    Label("Streaming now", systemImage: "play.circle.fill")
+                        .font(.caption).foregroundStyle(.blue)
+                } else {
+                    Label("In theaters", systemImage: "film.fill")
+                        .font(.caption).foregroundStyle(DS.Color.movieTheaterRed)
+                }
             }
-            Spacer()
+            .padding(.vertical, 14)
         }
-        .padding(.vertical, 2)
     }
 }
 
@@ -525,32 +517,42 @@ struct CalendarGameRow: View {
     let game: SportGame
 
     var body: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: 14) {
             CachedAsyncImage(url: game.team?.badgeImageURL) { phase in
                 switch phase {
                 case .success(let image):
                     image.resizable().aspectRatio(contentMode: .fit)
-                default:
-                    RoundedRectangle(cornerRadius: DS.Radius.xs)
+                case .failure, .empty:
+                    RoundedRectangle(cornerRadius: DS.Radius.sm)
                         .foregroundStyle(DS.Color.imagePlaceholder)
                         .overlay { Image(systemName: "sportscourt").foregroundStyle(.tertiary).imageScale(.small) }
+                @unknown default:
+                    RoundedRectangle(cornerRadius: DS.Radius.sm)
+                        .foregroundStyle(DS.Color.imagePlaceholder)
                 }
             }
-            .frame(width: 30, height: 44)
-            .clipShape(RoundedRectangle(cornerRadius: DS.Radius.xs))
+            .frame(width: 44, height: 44)
+            .clipShape(RoundedRectangle(cornerRadius: DS.Radius.sm))
 
-            VStack(alignment: .leading, spacing: 3) {
+            VStack(alignment: .leading, spacing: 4) {
                 Text(game.displayTitle)
                     .font(.subheadline)
                     .fontWeight(.medium)
                     .lineLimit(2)
-                Text(game.formattedGameTime)
-                    .font(.caption)
-                    .foregroundStyle(.tertiary)
+                HStack(spacing: 4) {
+                    Image(systemName: "calendar").imageScale(.small).foregroundStyle(.tertiary)
+                    Text(game.gameDate, style: .date).font(.caption).foregroundStyle(.secondary)
+                    Text("·").font(.caption).foregroundStyle(.tertiary)
+                    Text(game.formattedGameTime).font(.caption).foregroundStyle(.secondary)
+                }
+                if let league = game.team?.league {
+                    Text(league).font(.caption2).foregroundStyle(.tertiary)
+                }
             }
+            .padding(.vertical, 12)
+
             Spacer()
         }
-        .padding(.vertical, 2)
     }
 }
 

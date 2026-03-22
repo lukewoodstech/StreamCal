@@ -64,7 +64,8 @@ struct SportsView: View {
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Button { showingAddTeam = true } label: {
-                    Image(systemName: "plus")
+                    Image(systemName: "plus.circle.fill")
+                        .font(.title2)
                 }
             }
         }
