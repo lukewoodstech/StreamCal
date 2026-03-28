@@ -182,8 +182,8 @@ final class WatchPlanner {
         var isEmpty: Bool { episodes.isEmpty && movies.isEmpty && games.isEmpty }
     }
 
-    /// Groups episodes, movies, and games into calendar days: today through 120 days forward.
-    /// Excludes archived shows/movies, watched episodes, and TBA dates.
+    /// Groups episodes, movies, and games into calendar days from today forward with no upper limit.
+    /// Excludes archived shows/movies, watched episodes, TBA dates, and past dates.
     /// Sorted by date ascending.
     static func calendarDays(
         from episodes: [Episode],
@@ -192,12 +192,11 @@ final class WatchPlanner {
     ) -> [CalendarDay] {
         let cal = Calendar.current
         let today = cal.startOfDay(for: .now)
-        guard let end = cal.date(byAdding: .day, value: 120, to: today) else { return [] }
 
         // Episodes
         let windowed = episodes.filter {
             guard $0.show?.isArchived != true else { return false }
-            return !$0.isWatched && $0.airDate != .distantFuture && $0.airDate >= today && $0.airDate < end
+            return !$0.isWatched && $0.airDate != .distantFuture && $0.airDate >= today
         }
         var episodeDict: [Date: [Episode]] = [:]
         for ep in windowed {
@@ -209,7 +208,7 @@ final class WatchPlanner {
         let windowedMovies = movies.filter {
             guard !$0.isArchived && !$0.isWatched else { return false }
             let date = $0.primaryCalendarDate
-            return date != .distantFuture && date >= today && date < end
+            return date != .distantFuture && date >= today
         }
         var movieDict: [Date: [Movie]] = [:]
         for movie in windowedMovies {
@@ -219,7 +218,7 @@ final class WatchPlanner {
 
         // Games
         let windowedGames = games.filter {
-            $0.gameDate != .distantFuture && $0.gameDate >= today && $0.gameDate < end && !$0.isCompleted
+            $0.gameDate != .distantFuture && $0.gameDate >= today && !$0.isCompleted
         }
         var gameDict: [Date: [SportGame]] = [:]
         for game in windowedGames {

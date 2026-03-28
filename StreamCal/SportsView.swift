@@ -3,12 +3,13 @@ import SwiftData
 
 struct SportsView: View {
 
+    var onAdd: (() -> Void)? = nil
+
     @Environment(\.modelContext) private var modelContext
 
     @Query(sort: \SportTeam.name)
     private var teams: [SportTeam]
 
-    @State private var showingAddTeam = false
     @State private var toast: ToastMessage? = nil
 
     /// Sport display order and icon mapping
@@ -29,11 +30,14 @@ struct SportsView: View {
     var body: some View {
         Group {
             if teams.isEmpty {
-                ContentUnavailableView(
-                    "No Teams Yet",
-                    systemImage: "sportscourt.fill",
-                    description: Text("Tap + to follow a team.")
-                )
+                ContentUnavailableView {
+                    Label("No Teams Yet", systemImage: "sportscourt.fill")
+                } description: {
+                    Text("Follow a team to see their upcoming games.")
+                } actions: {
+                    Button("Add a Team") { onAdd?() }
+                        .buttonStyle(.bordered)
+                }
             } else {
                 List {
                     ForEach(teamsBySport, id: \.sport) { group in
@@ -60,17 +64,6 @@ struct SportsView: View {
                     await RefreshService.shared.refreshAllTeams(modelContext: modelContext)
                 }
             }
-        }
-        .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                Button { showingAddTeam = true } label: {
-                    Image(systemName: "plus.circle.fill")
-                        .font(.title2)
-                }
-            }
-        }
-        .sheet(isPresented: $showingAddTeam) {
-            AddTeamSheet(onAdded: { name in toast = .added(name) })
         }
         .toast(message: toast) { toast = nil }
     }

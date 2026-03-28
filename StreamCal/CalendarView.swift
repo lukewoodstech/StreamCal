@@ -34,6 +34,13 @@ struct CalendarView: View {
         daysByDate.mapValues { $0.episodes }
     }
 
+    /// Cap forward navigation at the month of the last known event, or 24 months out — whichever is later.
+    private var latestContentMonth: Date {
+        let latest = calendarDays.last?.date ?? today
+        let cap = cal.date(byAdding: .month, value: 24, to: today) ?? today
+        return cal.startOfMonth(for: max(latest, cap))
+    }
+
     private var selectedDay: WatchPlanner.CalendarDay? { daysByDate[selectedDate] }
     private var selectedEpisodes: [Episode] { selectedDay?.episodes ?? [] }
     private var selectedMovies: [Movie] { selectedDay?.movies ?? [] }
@@ -136,6 +143,7 @@ struct CalendarView: View {
                             moviesByDate: daysByDate.mapValues { $0.movies },
                             gamesByDate: daysByDate.mapValues { $0.games },
                             today: today,
+                            maxMonth: latestContentMonth,
                             onMonthChanged: { newMonth in
                                 selectedDate = nearestDate(in: newMonth, from: episodesByDate) ?? cal.startOfMonth(for: newMonth)
                             },
@@ -225,6 +233,7 @@ struct MonthGridView: View {
     var moviesByDate: [Date: [Movie]] = [:]
     var gamesByDate: [Date: [SportGame]] = [:]
     let today: Date
+    var maxMonth: Date = .distantFuture
     var onMonthChanged: ((Date) -> Void)? = nil
     var onGoToToday: (() -> Void)? = nil
 
@@ -234,6 +243,10 @@ struct MonthGridView: View {
 
     private var canGoBack: Bool {
         displayedMonth > cal.startOfMonth(for: today)
+    }
+
+    private var canGoForward: Bool {
+        displayedMonth < cal.startOfMonth(for: maxMonth)
     }
 
     private var monthTitle: String {
@@ -293,7 +306,9 @@ struct MonthGridView: View {
                 } label: {
                     Image(systemName: "chevron.right")
                         .imageScale(.small)
+                        .foregroundStyle(canGoForward ? .primary : .tertiary)
                 }
+                .disabled(!canGoForward)
             }
             .padding(.vertical, 4)
 

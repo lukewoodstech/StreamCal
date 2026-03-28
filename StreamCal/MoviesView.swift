@@ -3,12 +3,13 @@ import SwiftData
 
 struct MoviesView: View {
 
+    var onAdd: (() -> Void)? = nil
+
     @Environment(\.modelContext) private var modelContext
 
     @Query(sort: \Movie.createdAt, order: .reverse)
     private var movies: [Movie]
 
-    @State private var showingAddMovie = false
     @State private var toast: ToastMessage? = nil
 
     private var inTheaters: [Movie] {
@@ -39,11 +40,14 @@ struct MoviesView: View {
     var body: some View {
         Group {
             if movies.filter({ !$0.isArchived }).isEmpty {
-                ContentUnavailableView(
-                    "No Movies Yet",
-                    systemImage: "film.stack",
-                    description: Text("Tap + to add a movie.")
-                )
+                ContentUnavailableView {
+                    Label("No Movies Yet", systemImage: "film.stack")
+                } description: {
+                    Text("Search for a movie to track its release.")
+                } actions: {
+                    Button("Add a Movie") { onAdd?() }
+                        .buttonStyle(.bordered)
+                }
             } else {
                 List {
                     movieSection("In Theaters", movies: inTheaters)
@@ -57,17 +61,6 @@ struct MoviesView: View {
                     await RefreshService.shared.refreshAllMovies(modelContext: modelContext)
                 }
             }
-        }
-        .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                Button { showingAddMovie = true } label: {
-                    Image(systemName: "plus.circle.fill")
-                        .font(.title2)
-                }
-            }
-        }
-        .sheet(isPresented: $showingAddMovie) {
-            AddMovieSheet(onAdded: { title in toast = .added(title) })
         }
         .toast(message: toast) { toast = nil }
     }

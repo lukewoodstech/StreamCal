@@ -5,6 +5,8 @@ struct LibraryView: View {
 
     /// When false, the view is embedded in LibraryContainerView which provides the NavigationStack.
     var standalone: Bool = true
+    /// Called when the user taps "Add a Show" in the empty state (embedded mode only).
+    var onAdd: (() -> Void)? = nil
 
     @Environment(\.modelContext) private var modelContext
 
@@ -12,7 +14,6 @@ struct LibraryView: View {
     private var shows: [Show]
 
     @State private var showingAddShow = false
-    @State private var addedShowTitle: String? = nil
     @State private var actionToast: ToastMessage? = nil
 
     var airingShows: [Show] {
@@ -41,11 +42,14 @@ struct LibraryView: View {
     private var innerBody: some View {
         Group {
                 if shows.isEmpty {
-                    ContentUnavailableView(
-                        "No Shows Yet",
-                        systemImage: "rectangle.stack.fill",
-                        description: Text("Tap + to add your first show.")
-                    )
+                    ContentUnavailableView {
+                        Label("No Shows Yet", systemImage: "rectangle.stack.fill")
+                    } description: {
+                        Text("Search for a show to start tracking episodes.")
+                    } actions: {
+                        Button("Add a Show") { standalone ? (showingAddShow = true) : onAdd?() }
+                            .buttonStyle(.bordered)
+                    }
                 } else {
                     List {
                         if !airingShows.isEmpty {
@@ -144,24 +148,19 @@ struct LibraryView: View {
                 }
             }
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        showingAddShow = true
-                    } label: {
-                        Image(systemName: "plus.circle.fill")
-                            .font(.title2)
+                if standalone {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button { showingAddShow = true } label: {
+                            Image(systemName: "plus.circle.fill")
+                                .font(.title2)
+                        }
                     }
                 }
             }
             .sheet(isPresented: $showingAddShow) {
-                AddShowSheet(onAdded: { title in
-                    addedShowTitle = title
-                })
+                AddShowSheet(onAdded: { _ in })
             }
-            .toast(message: addedShowTitle.map { .added($0) } ?? actionToast) {
-                addedShowTitle = nil
-                actionToast = nil
-            }
+            .toast(message: actionToast) { actionToast = nil }
     }
 }
 
