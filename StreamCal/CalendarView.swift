@@ -51,7 +51,34 @@ struct CalendarView: View {
         NavigationStack {
             List {
                 Section {
-                    if !selectedHasContent {
+                    if selectedDate < today {
+                        // Past day state
+                        VStack(spacing: 12) {
+                            Image(systemName: "clock.arrow.circlepath")
+                                .font(.system(size: 40))
+                                .foregroundStyle(.tertiary)
+                            Text("This Day Has Passed")
+                                .font(.headline)
+                                .foregroundStyle(.secondary)
+                            Text("Future episodes, movies, and games will appear here once scheduled.")
+                                .font(.subheadline)
+                                .foregroundStyle(.tertiary)
+                                .multilineTextAlignment(.center)
+                                .padding(.horizontal)
+                            Button("Go to Today") {
+                                withAnimation(.easeInOut(duration: 0.2)) {
+                                    displayedMonth = cal.startOfMonth(for: today)
+                                    selectedDate = today
+                                }
+                            }
+                            .buttonStyle(.bordered)
+                            .padding(.top, 4)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 48)
+                        .listRowBackground(Color.clear)
+                        .listRowSeparator(.hidden)
+                    } else if !selectedHasContent {
                         VStack(spacing: 10) {
                             Image(systemName: "calendar.badge.clock")
                                 .font(.system(size: 40))
@@ -77,8 +104,9 @@ struct CalendarView: View {
                             .listRowBackground(Color(.systemGroupedBackground))
                             .listRowSeparator(.hidden)
 
-                        // Episodes card
+                        // TV Shows card
                         if !selectedEpisodes.isEmpty {
+                            cardLabel("TV Shows")
                             VStack(spacing: 0) {
                                 ForEach(Array(selectedEpisodes.enumerated()), id: \.element.persistentModelID) { index, episode in
                                     CalendarEpisodeRow(episode: episode)
@@ -97,6 +125,7 @@ struct CalendarView: View {
 
                         // Movies card
                         if !selectedMovies.isEmpty {
+                            cardLabel("Movies")
                             VStack(spacing: 0) {
                                 ForEach(Array(selectedMovies.enumerated()), id: \.element.persistentModelID) { index, movie in
                                     NavigationLink(destination: MovieDetailView(movie: movie)) {
@@ -118,6 +147,7 @@ struct CalendarView: View {
 
                         // Games card
                         if !selectedGames.isEmpty {
+                            cardLabel("Games")
                             VStack(spacing: 0) {
                                 ForEach(Array(selectedGames.enumerated()), id: \.element.persistentModelID) { index, game in
                                     CalendarGameRow(game: game)
@@ -165,7 +195,7 @@ struct CalendarView: View {
             .listStyle(.plain)
             .scrollContentBackground(.hidden)
             .background(Color(.systemGroupedBackground))
-            .navigationTitle("Calendar")
+            .navigationTitle("StreamCal")
             .navigationBarTitleDisplayMode(.large)
             .toolbarBackground(Color(.systemGroupedBackground), for: .navigationBar)
             .refreshable { await refreshAll() }
@@ -208,12 +238,29 @@ struct CalendarView: View {
                 .font(.subheadline)
                 .fontWeight(.semibold)
                 .foregroundStyle(cal.isDateInToday(selectedDate) ? Color.accentColor : .primary)
-            if !selectedEpisodes.isEmpty {
-                Text("· \(selectedEpisodes.count) ep\(selectedEpisodes.count == 1 ? "" : "s")")
+            let parts: [String] = [
+                selectedEpisodes.isEmpty ? nil : "\(selectedEpisodes.count) show\(selectedEpisodes.count == 1 ? "" : "s")",
+                selectedMovies.isEmpty ? nil : "\(selectedMovies.count) movie\(selectedMovies.count == 1 ? "" : "s")",
+                selectedGames.isEmpty ? nil : "\(selectedGames.count) game\(selectedGames.count == 1 ? "" : "s")"
+            ].compactMap { $0 }
+            if !parts.isEmpty {
+                Text("· " + parts.joined(separator: " · "))
                     .font(.subheadline)
                     .foregroundStyle(.tertiary)
             }
         }
+    }
+
+    @ViewBuilder
+    private func cardLabel(_ title: String) -> some View {
+        Text(title)
+            .font(.caption).fontWeight(.semibold)
+            .foregroundStyle(.secondary)
+            .textCase(.uppercase)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .listRowBackground(Color.clear)
+            .listRowSeparator(.hidden)
+            .listRowInsets(EdgeInsets(top: 12, leading: 20, bottom: 2, trailing: 16))
     }
 
     private var headerLabel: String {
@@ -323,6 +370,18 @@ struct MonthGridView: View {
                         .padding(.bottom, 4)
                 }
             }
+
+            // Dot legend
+            HStack(spacing: 12) {
+                ForEach([(Color.accentColor, "Shows"), (DS.Color.movieTheaterRed, "Movies"), (Color.green, "Games")], id: \.1) { color, label in
+                    HStack(spacing: 4) {
+                        Circle().fill(color).frame(width: 5, height: 5)
+                        Text(label).font(.caption2).foregroundStyle(.secondary)
+                    }
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .trailing)
+            .padding(.bottom, 4)
 
             // Day cells
             LazyVGrid(columns: columns, spacing: 4) {

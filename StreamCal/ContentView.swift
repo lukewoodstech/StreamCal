@@ -15,9 +15,9 @@ struct ContentView: View {
             OnboardingView()
         } else {
         TabView {
-            LibraryContainerView()
+            CalendarView()
                 .tabItem {
-                    Label("Library", systemImage: "rectangle.stack.fill")
+                    Label("Calendar", systemImage: "calendar")
                 }
 
             NextUpView()
@@ -25,9 +25,9 @@ struct ContentView: View {
                     Label("Next Up", systemImage: "play.circle.fill")
                 }
 
-            CalendarView()
+            LibraryContainerView()
                 .tabItem {
-                    Label("Calendar", systemImage: "calendar")
+                    Label("Library", systemImage: "rectangle.stack.fill")
                 }
 
             SettingsView()

@@ -110,11 +110,6 @@ struct NextUpView: View {
             .navigationTitle("")
             .navigationBarTitleDisplayMode(.inline)
             .toolbarBackground(Color(.systemGroupedBackground), for: .navigationBar)
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Color.clear.frame(width: 28, height: 28)
-                }
-            }
         }
     }
 
