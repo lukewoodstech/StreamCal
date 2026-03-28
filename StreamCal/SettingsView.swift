@@ -21,6 +21,22 @@ struct SettingsView: View {
     @AppStorage("airReminderHour") private var airReminderHour: Int = 9
     @AppStorage("weeklySummaryEnabled") private var weeklySummaryEnabled: Bool = true
     @AppStorage("weeklySummaryHour") private var weeklySummaryHour: Int = 20
+    @AppStorage("claudeAPIKey") private var claudeAPIKey: String = ""
+    @AppStorage("preferredPlatforms") private var preferredPlatformsRaw: String = ""
+
+    private var preferredPlatforms: Set<String> {
+        get { Set(preferredPlatformsRaw.split(separator: ",").map(String.init)) }
+    }
+
+    private var platformsForPicker: [StreamingPlatform] {
+        StreamingPlatform.allCases.filter { $0 != .other }
+    }
+
+    private func togglePlatform(_ platform: String) {
+        var platforms = preferredPlatforms
+        if platforms.contains(platform) { platforms.remove(platform) } else { platforms.insert(platform) }
+        preferredPlatformsRaw = platforms.sorted().joined(separator: ",")
+    }
 
     private var appVersion: String {
         Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "—"
@@ -104,6 +120,18 @@ struct SettingsView: View {
                         Label("Unknown", systemImage: "bell")
                             .foregroundStyle(.secondary)
                     }
+                }
+
+                platformSection
+
+                Section {
+                    SecureField("Enter API Key", text: $claudeAPIKey)
+                        .textContentType(.password)
+                        .autocorrectionDisabled()
+                } header: {
+                    Text("Smart Features")
+                } footer: {
+                    Text("Enter your Anthropic API key to enable AI-powered suggestions and weekly digests. Your key is stored only on your device.")
                 }
 
                 Section("Data") {
@@ -219,6 +247,33 @@ struct SettingsView: View {
             .animation(.spring(duration: 0.35), value: showingDeletedBanner)
             .animation(.spring(duration: 0.3), value: showingDeleteAllConfirm)
             .animation(.spring(duration: 0.3), value: editingSlot == nil)
+        }
+    }
+
+    // MARK: - Platform section
+
+    private var platformSection: some View {
+        Section {
+            ForEach(platformsForPicker) { platform in
+                Button {
+                    togglePlatform(platform.rawValue)
+                } label: {
+                    HStack {
+                        Text(platform.rawValue)
+                            .foregroundStyle(.primary)
+                        Spacer()
+                        if preferredPlatforms.contains(platform.rawValue) {
+                            Image(systemName: "checkmark")
+                                .foregroundStyle(Color.accentColor)
+                                .fontWeight(.semibold)
+                        }
+                    }
+                }
+            }
+        } header: {
+            Text("Preferred Streaming Services")
+        } footer: {
+            Text("Preferred services appear at the top of search suggestions.")
         }
     }
 

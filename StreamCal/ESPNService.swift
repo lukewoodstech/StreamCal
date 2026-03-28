@@ -112,10 +112,12 @@ final class ESPNService: Sendable {
     static let shared = ESPNService()
 
     static let leagues: [ESPNLeagueConfig] = [
-        ESPNLeagueConfig(name: "NFL", sport: "football",   league: "nfl",  icon: "football.fill"),
-        ESPNLeagueConfig(name: "NBA", sport: "basketball", league: "nba",  icon: "basketball.fill"),
-        ESPNLeagueConfig(name: "MLB", sport: "baseball",   league: "mlb",  icon: "baseball.fill"),
-        ESPNLeagueConfig(name: "NHL", sport: "hockey",     league: "nhl",  icon: "hockey.puck.fill"),
+        ESPNLeagueConfig(name: "NFL",              sport: "football",    league: "nfl",                      icon: "football.fill"),
+        ESPNLeagueConfig(name: "NBA",              sport: "basketball",  league: "nba",                      icon: "basketball.fill"),
+        ESPNLeagueConfig(name: "MLB",              sport: "baseball",    league: "mlb",                      icon: "baseball.fill"),
+        ESPNLeagueConfig(name: "NHL",              sport: "hockey",      league: "nhl",                      icon: "hockey.puck.fill"),
+        ESPNLeagueConfig(name: "NCAA Football",    sport: "football",    league: "college-football",          icon: "football.fill"),
+        ESPNLeagueConfig(name: "NCAA Basketball",  sport: "basketball",  league: "mens-college-basketball",   icon: "basketball.fill"),
     ]
 
     private let baseURL = "https://site.api.espn.com/apis/site/v2/sports"

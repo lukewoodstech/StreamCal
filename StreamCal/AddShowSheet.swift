@@ -1,6 +1,11 @@
 import SwiftUI
 import SwiftData
 
+private enum ContentSource: String, CaseIterable {
+    case tv = "TV Shows"
+    case anime = "Anime"
+}
+
 struct AddShowSheet: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
@@ -10,15 +15,26 @@ struct AddShowSheet: View {
     /// Called with the show title after a successful import.
     var onAdded: ((String) -> Void)? = nil
 
+    @State private var contentSource: ContentSource = .tv
     @State private var searchText = ""
-    @State private var results: [TMDBShow] = []
-    @State private var suggestions: [TMDBShow] = []
+
+    // TV state
+    @State private var tvResults: [TMDBShow] = []
+    @State private var tvSuggestions: [TMDBShow] = []
+    @State private var libraryTMDBIDs: Set<Int> = []
+    @State private var libraryShowsByTMDBID: [Int: Show] = [:]
+
+    // Anime state
+    @State private var animeResults: [AniListResult] = []
+    @State private var animeSuggestions: [AniListResult] = []
+    @State private var libraryAnilistIDs: Set<Int> = []
+
+    // Shared state
     @State private var isLoadingSuggestions = false
     @State private var isSearching = false
     @State private var isImporting = false
     @State private var importError: String? = nil
     @State private var searchTask: Task<Void, Never>? = nil
-    @State private var libraryTMDBIDs: Set<Int> = []
 
     // Edit-mode fields
     @State private var editPlatforms: Set<String> = []
@@ -68,12 +84,32 @@ struct AddShowSheet: View {
 
     private var searchView: some View {
         List {
+            if !isEditMode {
+                // Source picker at the top
+                Picker("Content Source", selection: $contentSource) {
+                    ForEach(ContentSource.allCases, id: \.self) { source in
+                        Text(source.rawValue).tag(source)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .listRowBackground(Color.clear)
+                .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
+                .onChange(of: contentSource) { _, _ in
+                    searchText = ""
+                    tvResults = []
+                    animeResults = []
+                    isSearching = false
+                    searchTask?.cancel()
+                    Task { await loadSuggestions() }
+                }
+            }
+
             if isImporting {
                 HStack {
                     Spacer()
                     VStack(spacing: 12) {
                         ProgressView()
-                        Text("Importing episodes…")
+                        Text("Importing…")
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
                     }
@@ -90,44 +126,89 @@ struct AddShowSheet: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
-            } else if results.isEmpty && !searchText.isEmpty && !isSearching {
-                ContentUnavailableView.search(text: searchText)
             } else if searchText.isEmpty {
+                // Suggestions
                 if isLoadingSuggestions {
                     HStack { Spacer(); ProgressView(); Spacer() }
                         .listRowBackground(Color.clear)
                         .padding(.vertical, 20)
-                } else if !suggestions.isEmpty {
+                } else if contentSource == .tv, !tvSuggestions.isEmpty {
                     Section("Trending This Week") {
-                        ForEach(suggestions) { show in
-                            let alreadyAdded = libraryTMDBIDs.contains(show.id)
+                        ForEach(tvSuggestions) { show in
+                            let inLibrary = libraryTMDBIDs.contains(show.id)
+                            if inLibrary, let existing = libraryShowsByTMDBID[show.id] {
+                                NavigationLink(destination: ShowDetailView(show: existing)) {
+                                    SearchResultRow(show: show, alreadyAdded: true)
+                                }
+                            } else {
+                                Button {
+                                    Task { await importShow(show) }
+                                } label: {
+                                    SearchResultRow(show: show, alreadyAdded: false)
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                    }
+                } else if contentSource == .anime, !animeSuggestions.isEmpty {
+                    Section("Trending This Week") {
+                        ForEach(animeSuggestions) { result in
+                            let inLibrary = libraryAnilistIDs.contains(result.id)
                             Button {
-                                guard !alreadyAdded else { return }
-                                Task { await importShow(show) }
+                                guard !inLibrary else { return }
+                                Task { await importAnime(result) }
                             } label: {
-                                SearchResultRow(show: show, alreadyAdded: alreadyAdded)
+                                AnimeSearchResultRow(result: result, isInLibrary: inLibrary)
                             }
                             .buttonStyle(.plain)
-                            .disabled(alreadyAdded)
+                        }
+                    }
+                }
+            } else if contentSource == .tv {
+                // TV search results
+                if tvResults.isEmpty && !isSearching {
+                    ContentUnavailableView.search(text: searchText)
+                } else {
+                    ForEach(tvResults) { show in
+                        let inLibrary = libraryTMDBIDs.contains(show.id)
+                        if inLibrary, let existing = libraryShowsByTMDBID[show.id] {
+                            NavigationLink(destination: ShowDetailView(show: existing)) {
+                                SearchResultRow(show: show, alreadyAdded: true)
+                            }
+                        } else {
+                            Button {
+                                Task { await importShow(show) }
+                            } label: {
+                                SearchResultRow(show: show, alreadyAdded: false)
+                            }
+                            .buttonStyle(.plain)
                         }
                     }
                 }
             } else {
-                ForEach(results) { show in
-                    let alreadyAdded = libraryTMDBIDs.contains(show.id)
-                    Button {
-                        guard !alreadyAdded else { return }
-                        Task { await importShow(show) }
-                    } label: {
-                        SearchResultRow(show: show, alreadyAdded: alreadyAdded)
+                // Anime search results
+                if animeResults.isEmpty && !isSearching {
+                    ContentUnavailableView.search(text: searchText)
+                } else {
+                    ForEach(animeResults) { result in
+                        let inLibrary = libraryAnilistIDs.contains(result.id)
+                        Button {
+                            guard !inLibrary else { return }
+                            Task { await importAnime(result) }
+                        } label: {
+                            AnimeSearchResultRow(result: result, isInLibrary: inLibrary)
+                        }
+                        .buttonStyle(.plain)
                     }
-                    .buttonStyle(.plain)
-                    .disabled(alreadyAdded)
                 }
             }
         }
         .listStyle(.plain)
-        .searchable(text: $searchText, placement: .navigationBarDrawer(displayMode: .always), prompt: "Search TV shows…")
+        .searchable(
+            text: $searchText,
+            placement: .navigationBarDrawer(displayMode: .always),
+            prompt: contentSource == .tv ? "Search TV shows…" : "Search anime…"
+        )
         .onChange(of: searchText) { _, newValue in
             scheduleSearch(query: newValue)
         }
@@ -180,53 +261,62 @@ struct AddShowSheet: View {
         }
     }
 
-    // MARK: - Search Logic
+    // MARK: - Load Suggestions
 
     private func loadSuggestions() async {
         isLoadingSuggestions = true
-        suggestions = (try? await TMDBService.shared.fetchTrendingShows()) ?? []
+        if contentSource == .tv {
+            tvSuggestions = (try? await TMDBService.shared.fetchTrendingShows()) ?? []
+        } else {
+            animeSuggestions = (try? await AniListService.shared.fetchTrending()) ?? []
+        }
         isLoadingSuggestions = false
     }
 
     private func loadLibraryIDs() {
-        let descriptor = FetchDescriptor<Show>()
-        if let shows = try? modelContext.fetch(descriptor) {
+        if let shows = try? modelContext.fetch(FetchDescriptor<Show>()) {
             libraryTMDBIDs = Set(shows.compactMap { $0.tmdbID })
+            libraryShowsByTMDBID = Dictionary(uniqueKeysWithValues: shows.compactMap { show in
+                show.tmdbID.map { ($0, show) }
+            })
+        }
+        if let anime = try? modelContext.fetch(FetchDescriptor<AnimeShow>()) {
+            libraryAnilistIDs = Set(anime.map { $0.anilistID })
         }
     }
+
+    // MARK: - Search
 
     private func scheduleSearch(query: String) {
         searchTask?.cancel()
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard trimmed.count >= 2 else {
-            results = []
+            tvResults = []
+            animeResults = []
             isSearching = false
             return
         }
+        let source = contentSource
         searchTask = Task {
             try? await Task.sleep(for: .milliseconds(400))
             guard !Task.isCancelled else { return }
             isSearching = true
-            do {
-                let found = try await TMDBService.shared.searchShows(query: trimmed)
-                if !Task.isCancelled {
-                    results = found
-                }
-            } catch {
-                if !Task.isCancelled {
-                    results = []
-                }
+            if source == .tv {
+                let found = (try? await TMDBService.shared.searchShows(query: trimmed)) ?? []
+                if !Task.isCancelled { tvResults = found }
+            } else {
+                let found = (try? await AniListService.shared.search(trimmed)) ?? []
+                if !Task.isCancelled { animeResults = found }
             }
             isSearching = false
         }
     }
 
-    // MARK: - Import Logic
+    // MARK: - Import TV Show
 
     private func importShow(_ tmdbShow: TMDBShow) async {
         isImporting = true
         importError = nil
-
         do {
             let details = try await TMDBService.shared.fetchShowDetails(tmdbID: tmdbShow.id)
             let matchedPlatforms = platformsFromNetworks(details.networks)
@@ -258,8 +348,51 @@ struct AddShowSheet: View {
             }
 
             await NotificationService.shared.scheduleNotifications(for: show)
-
             let title = show.title
+            dismiss()
+            onAdded?(title)
+        } catch {
+            importError = error.localizedDescription
+            isImporting = false
+        }
+    }
+
+    // MARK: - Import Anime
+
+    private func importAnime(_ result: AniListResult) async {
+        isImporting = true
+        importError = nil
+        do {
+            let detail = try await AniListService.shared.fetchDetails(anilistID: result.id)
+            let show = AnimeShow(
+                anilistID: detail.id,
+                titleRomaji: detail.titleRomaji,
+                titleEnglish: detail.titleEnglish,
+                coverImageURL: detail.coverImageURL,
+                overview: detail.overview,
+                animeStatus: detail.status,
+                totalEpisodes: detail.totalEpisodes,
+                genres: detail.genres
+            )
+            modelContext.insert(show)
+
+            for (epNum, airDate) in detail.airedEpisodes {
+                let ep = AnimeEpisode(episodeNumber: epNum, airDate: airDate)
+                ep.show = show
+                modelContext.insert(ep)
+            }
+            if let next = detail.nextAiringEpisode {
+                let nextDate = Date(timeIntervalSince1970: Double(next.airingAt))
+                if !detail.airedEpisodes.contains(where: { $0.episodeNumber == next.episode }) {
+                    let ep = AnimeEpisode(episodeNumber: next.episode, airDate: nextDate)
+                    ep.show = show
+                    modelContext.insert(ep)
+                }
+            }
+
+            try? modelContext.save()
+            libraryAnilistIDs.insert(result.id)
+            let title = show.displayTitle
             dismiss()
             onAdded?(title)
         } catch {
@@ -320,7 +453,7 @@ struct AddShowSheet: View {
     }
 }
 
-// MARK: - Search Result Row
+// MARK: - TV Search Result Row
 
 struct SearchResultRow: View {
     let show: TMDBShow
@@ -331,19 +464,13 @@ struct SearchResultRow: View {
             AsyncImage(url: show.posterThumbnailURL) { phase in
                 switch phase {
                 case .success(let image):
-                    image
-                        .resizable()
-                        .aspectRatio(contentMode: .fill)
+                    image.resizable().aspectRatio(contentMode: .fill)
                 case .failure, .empty:
                     Rectangle()
                         .foregroundStyle(Color(.systemGray5))
-                        .overlay {
-                            Image(systemName: "tv")
-                                .foregroundStyle(.tertiary)
-                        }
+                        .overlay { Image(systemName: "tv").foregroundStyle(.tertiary) }
                 @unknown default:
-                    Rectangle()
-                        .foregroundStyle(Color(.systemGray5))
+                    Rectangle().foregroundStyle(Color(.systemGray5))
                 }
             }
             .frame(width: 46, height: 69)
@@ -356,26 +483,18 @@ struct SearchResultRow: View {
                     .lineLimit(2)
                     .foregroundStyle(alreadyAdded ? .secondary : .primary)
                 if let year = show.firstAirDate?.prefix(4) {
-                    Text(year)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                    Text(year).font(.caption).foregroundStyle(.secondary)
                 }
                 if let overview = show.overview, !overview.isEmpty {
-                    Text(overview)
-                        .font(.caption)
-                        .foregroundStyle(.tertiary)
-                        .lineLimit(2)
+                    Text(overview).font(.caption).foregroundStyle(.tertiary).lineLimit(2)
                 }
             }
 
             Spacer()
 
             if alreadyAdded {
-                Label("In Library", systemImage: "checkmark.circle.fill")
-                    .font(.caption)
-                    .fontWeight(.medium)
+                Image(systemName: "checkmark.circle.fill")
                     .foregroundStyle(.green)
-                    .labelStyle(.iconOnly)
                     .imageScale(.large)
             } else {
                 Image(systemName: "plus.circle")
@@ -387,7 +506,77 @@ struct SearchResultRow: View {
     }
 }
 
+// MARK: - Anime Search Result Row
+
+struct AnimeSearchResultRow: View {
+    let result: AniListResult
+    let isInLibrary: Bool
+
+    var body: some View {
+        HStack(spacing: 12) {
+            CachedAsyncImage(url: result.coverImageURL.flatMap { URL(string: $0) }) { phase in
+                switch phase {
+                case .success(let image):
+                    image.resizable().aspectRatio(contentMode: .fill)
+                case .failure, .empty:
+                    Rectangle()
+                        .foregroundStyle(DS.Color.imagePlaceholder)
+                        .overlay { Image(systemName: "sparkles.tv").foregroundStyle(.tertiary) }
+                @unknown default:
+                    Rectangle().foregroundStyle(DS.Color.imagePlaceholder)
+                }
+            }
+            .frame(width: 46, height: 69)
+            .clipShape(RoundedRectangle(cornerRadius: 6))
+            .opacity(isInLibrary ? 0.5 : 1)
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(result.displayTitle)
+                    .font(.headline)
+                    .lineLimit(2)
+                    .foregroundStyle(isInLibrary ? .secondary : .primary)
+                if let eng = result.titleEnglish, eng != result.titleRomaji {
+                    Text(result.titleRomaji).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                }
+                HStack(spacing: 6) {
+                    Text(animeStatusLabel(result.status)).font(.caption).foregroundStyle(.secondary)
+                    if let total = result.totalEpisodes {
+                        Text("· \(total) eps").font(.caption).foregroundStyle(.tertiary)
+                    }
+                }
+                if let overview = result.overview, !overview.isEmpty {
+                    Text(overview).font(.caption).foregroundStyle(.tertiary).lineLimit(2)
+                }
+            }
+
+            Spacer()
+
+            if isInLibrary {
+                Image(systemName: "checkmark.circle.fill")
+                    .foregroundStyle(.green)
+                    .imageScale(.large)
+            } else {
+                Image(systemName: "plus.circle")
+                    .foregroundStyle(Color.accentColor)
+                    .imageScale(.large)
+            }
+        }
+        .padding(.vertical, 4)
+    }
+
+    private func animeStatusLabel(_ status: String) -> String {
+        switch status {
+        case "RELEASING": return "Airing"
+        case "FINISHED": return "Finished"
+        case "NOT_YET_RELEASED": return "Coming Soon"
+        case "CANCELLED": return "Cancelled"
+        case "HIATUS": return "On Hiatus"
+        default: return status
+        }
+    }
+}
+
 #Preview {
     AddShowSheet()
-        .modelContainer(for: [Show.self, Episode.self], inMemory: true)
+        .modelContainer(for: [Show.self, Episode.self, AnimeShow.self, AnimeEpisode.self], inMemory: true)
 }

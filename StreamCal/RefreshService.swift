@@ -157,6 +157,51 @@ final class RefreshService {
         }
     }
 
+    // MARK: - Anime
+
+    func refreshAllAnime(modelContext: ModelContext) async {
+        let descriptor = FetchDescriptor<AnimeShow>()
+        guard let shows = try? modelContext.fetch(descriptor) else { return }
+        guard !shows.isEmpty else { return }
+
+        for show in shows {
+            guard let detail = try? await AniListService.shared.fetchDetails(anilistID: show.anilistID) else { continue }
+
+            // Update show metadata
+            show.animeStatus = detail.status
+            show.totalEpisodes = detail.totalEpisodes
+            show.updatedAt = .now
+
+            // Upsert episodes keyed by episode number
+            var existingMap: [Int: AnimeEpisode] = [:]
+            for ep in show.episodes { existingMap[ep.episodeNumber] = ep }
+
+            for (epNum, airDate) in detail.airedEpisodes {
+                if let existing = existingMap[epNum] {
+                    existing.airDate = airDate
+                } else {
+                    let ep = AnimeEpisode(episodeNumber: epNum, airDate: airDate)
+                    ep.show = show
+                    modelContext.insert(ep)
+                }
+            }
+
+            // Upsert next airing episode
+            if let next = detail.nextAiringEpisode {
+                let nextDate = Date(timeIntervalSince1970: Double(next.airingAt))
+                if let existing = existingMap[next.episode] {
+                    existing.airDate = nextDate
+                } else if detail.airedEpisodes.first(where: { $0.episodeNumber == next.episode }) == nil {
+                    let ep = AnimeEpisode(episodeNumber: next.episode, airDate: nextDate)
+                    ep.show = show
+                    modelContext.insert(ep)
+                }
+            }
+        }
+
+        try? modelContext.save()
+    }
+
     // MARK: - Private
 
     /// Core upsert logic — fetches fresh data from TMDB and syncs into SwiftData.

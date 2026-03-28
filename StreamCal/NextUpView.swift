@@ -15,6 +15,15 @@ struct NextUpView: View {
     @Query(sort: \SportGame.gameDate)
     private var games: [SportGame]
 
+    @Query(sort: \AnimeShow.titleRomaji)
+    private var animeShows: [AnimeShow]
+
+    @AppStorage("claudeAPIKey") private var claudeAPIKey: String = ""
+
+    @State private var aiSuggestion: String? = nil
+    @State private var isLoadingAI = false
+    @State private var showingAISheet = false
+
     private var activeShows: [Show] { shows.filter { !$0.isArchived } }
 
     // MARK: - TV sections
@@ -67,9 +76,64 @@ struct NextUpView: View {
         }.prefix(20))
     }
 
+    // MARK: - Anime sections
+
+    private var animeAiringToday: [(show: AnimeShow, episode: AnimeEpisode)] {
+        animeShows.filter { !$0.isArchived }.compactMap { show -> (AnimeShow, AnimeEpisode)? in
+            let ep = show.episodes.filter { !$0.isWatched && Calendar.current.isDateInToday($0.airDate) }
+                .sorted { $0.episodeNumber < $1.episodeNumber }.first
+            guard let ep else { return nil }
+            return (show, ep)
+        }.sorted { $0.show.displayTitle < $1.show.displayTitle }
+    }
+
+    private var animeThisWeek: [(show: AnimeShow, episode: AnimeEpisode)] {
+        let cal = Calendar.current
+        let tomorrow = cal.startOfDay(for: cal.date(byAdding: .day, value: 1, to: .now) ?? .now)
+        let weekEnd = cal.date(byAdding: .day, value: 7, to: cal.startOfDay(for: .now)) ?? .now
+        return animeShows.filter { !$0.isArchived }.flatMap { show in
+            show.episodes.filter {
+                !$0.isWatched && $0.airDate != .distantFuture &&
+                $0.airDate >= tomorrow && $0.airDate < weekEnd
+            }.map { (show: show, episode: $0) }
+        }.sorted { lhs, rhs in
+            if lhs.episode.airDate != rhs.episode.airDate { return lhs.episode.airDate < rhs.episode.airDate }
+            return lhs.show.displayTitle < rhs.show.displayTitle
+        }
+    }
+
+    private var animeComingSoon: [(show: AnimeShow, episode: AnimeEpisode)] {
+        let cal = Calendar.current
+        let beyond = cal.date(byAdding: .day, value: 7, to: cal.startOfDay(for: .now)) ?? .now
+        return animeShows.filter { !$0.isArchived }.flatMap { show in
+            show.episodes.filter {
+                !$0.isWatched && $0.airDate != .distantFuture && $0.airDate >= beyond
+            }.map { (show: show, episode: $0) }
+        }.sorted { lhs, rhs in
+            if lhs.episode.airDate != rhs.episode.airDate { return lhs.episode.airDate < rhs.episode.airDate }
+            return lhs.show.displayTitle < rhs.show.displayTitle
+        }
+    }
+
+    // MARK: - Catch-up shows
+
+    private var catchUpShows: [(show: Show, daysUntil: Int, backlogCount: Int)] {
+        let cal = Calendar.current
+        let today = cal.startOfDay(for: .now)
+        return shows.filter { !$0.isArchived }.compactMap { show -> (Show, Int, Int)? in
+            let backlog = show.backlogEpisodes.count
+            guard backlog > 0 else { return nil }
+            guard let upcoming = show.nextUpcomingEpisode,
+                  upcoming.airDate != .distantFuture else { return nil }
+            let days = cal.dateComponents([.day], from: today, to: cal.startOfDay(for: upcoming.airDate)).day ?? Int.max
+            guard days <= 14 else { return nil }
+            return (show, days, backlog)
+        }.sorted { $0.1 < $1.1 }
+    }
+
     private var hasUpcomingContent: Bool {
         switch contentType {
-        case .shows:  return !airingToday.isEmpty || !thisWeek.isEmpty || !comingSoon.isEmpty || !dateTBA.isEmpty
+        case .shows:  return !airingToday.isEmpty || !thisWeek.isEmpty || !comingSoon.isEmpty || !dateTBA.isEmpty || !catchUpShows.isEmpty || !animeAiringToday.isEmpty || !animeThisWeek.isEmpty || !animeComingSoon.isEmpty
         case .movies: return !moviesInTheaters.isEmpty || !moviesComingSoon.isEmpty || !moviesStreamingSoon.isEmpty
         case .sports: return !gamesToday.isEmpty || !gamesThisWeek.isEmpty || !gamesUpcoming.isEmpty
         }
@@ -110,6 +174,7 @@ struct NextUpView: View {
             .navigationTitle("")
             .navigationBarTitleDisplayMode(.inline)
             .toolbarBackground(Color(.systemGroupedBackground), for: .navigationBar)
+            .sheet(isPresented: $showingAISheet) { aiSheet }
         }
     }
 
@@ -120,7 +185,7 @@ struct NextUpView: View {
             switch contentType {
             case .shows:
                 ContentUnavailableView("Nothing Upcoming", systemImage: "play.circle",
-                    description: Text("Add shows to your library to see upcoming episodes."))
+                    description: Text("Add shows or anime to your library to see upcoming episodes."))
             case .movies:
                 ContentUnavailableView("No Movies Upcoming", systemImage: "film",
                     description: Text("Add movies to track their release dates."))
@@ -138,31 +203,83 @@ struct NextUpView: View {
         List {
             switch contentType {
             case .shows:
-                if !airingToday.isEmpty {
+                // AI "What to watch tonight" card
+                if !claudeAPIKey.isEmpty {
+                    Section {
+                        Button {
+                            showingAISheet = true
+                            if aiSuggestion == nil { loadAISuggestion() }
+                        } label: {
+                            HStack(spacing: 12) {
+                                Image(systemName: "sparkles")
+                                    .font(.title2)
+                                    .foregroundStyle(.purple)
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("What should I watch tonight?")
+                                        .font(.headline)
+                                        .foregroundStyle(.primary)
+                                    Text("Tap for a personalized suggestion")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                                Spacer()
+                                Image(systemName: "chevron.right")
+                                    .imageScale(.small)
+                                    .foregroundStyle(.tertiary)
+                            }
+                            .padding(.vertical, 4)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+
+                // Catch-up card
+                if !catchUpShows.isEmpty {
+                    Section {
+                        ForEach(catchUpShows, id: \.show.persistentModelID) { item in
+                            NavigationLink(destination: ShowDetailView(show: item.show)) {
+                                CatchUpRow(show: item.show, daysUntil: item.daysUntil, backlogCount: item.backlogCount)
+                            }
+                        }
+                    } header: {
+                        NextUpSectionHeader(title: "Catch Up Before It's Too Late", icon: "bolt.fill", color: .orange)
+                    }
+                }
+
+                if !airingToday.isEmpty || !animeAiringToday.isEmpty {
                     Section {
                         ForEach(airingToday, id: \.episode.persistentModelID) { item in
                             EpisodeCard(show: item.show, episode: item.episode)
                                 .swipeActions(edge: .leading) { watchedButton(item.episode, item.show) }
                         }
+                        ForEach(animeAiringToday, id: \.episode.persistentModelID) { item in
+                            AnimeEpisodeCard(show: item.show, episode: item.episode)
+                        }
                     } header: {
                         NextUpSectionHeader(title: "Airing Today", icon: "star.fill", color: .orange)
                     }
                 }
-                if !thisWeek.isEmpty {
+                if !thisWeek.isEmpty || !animeThisWeek.isEmpty {
                     Section {
                         ForEach(thisWeek, id: \.episode.persistentModelID) { item in
                             EpisodeCard(show: item.show, episode: item.episode)
                                 .swipeActions(edge: .leading) { watchedButton(item.episode, item.show) }
                         }
+                        ForEach(animeThisWeek, id: \.episode.persistentModelID) { item in
+                            AnimeEpisodeCard(show: item.show, episode: item.episode)
+                        }
                     } header: {
                         NextUpSectionHeader(title: "This Week", icon: "calendar", color: .blue)
                     }
                 }
-                if !comingSoon.isEmpty {
+                if !comingSoon.isEmpty || !animeComingSoon.isEmpty {
                     Section {
                         ForEach(comingSoon, id: \.episode.persistentModelID) { item in
                             EpisodeCard(show: item.show, episode: item.episode)
                                 .swipeActions(edge: .leading) { watchedButton(item.episode, item.show) }
+                        }
+                        ForEach(animeComingSoon, id: \.episode.persistentModelID) { item in
+                            AnimeEpisodeCard(show: item.show, episode: item.episode)
                         }
                     } header: {
                         NextUpSectionHeader(title: "Coming Soon", icon: "clock", color: .secondary)
@@ -248,10 +365,82 @@ struct NextUpView: View {
                         NextUpSectionHeader(title: "Upcoming Games", icon: "clock", color: .secondary)
                     }
                 }
+
             }
         }
         .listStyle(.insetGrouped)
         .refreshable { await refreshAll() }
+    }
+
+    // MARK: - AI Sheet
+
+    private var aiSheet: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(spacing: 20) {
+                    if isLoadingAI {
+                        ProgressView("Thinking...")
+                            .padding(.top, 40)
+                    } else if let suggestion = aiSuggestion {
+                        VStack(alignment: .leading, spacing: 12) {
+                            HStack(spacing: 8) {
+                                Image(systemName: "sparkles")
+                                    .foregroundStyle(.purple)
+                                Text("Tonight's Pick")
+                                    .font(.headline)
+                            }
+                            Text(suggestion)
+                                .font(.body)
+                                .multilineTextAlignment(.leading)
+                        }
+                        .padding()
+                        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
+                        .padding(.horizontal)
+                        .padding(.top, 20)
+
+                        Button("Refresh Suggestion") { loadAISuggestion() }
+                            .buttonStyle(.bordered)
+                    } else {
+                        ContentUnavailableView("Unable to Generate Suggestion",
+                            systemImage: "exclamationmark.triangle",
+                            description: Text("Check your Claude API key in Settings."))
+                    }
+                }
+            }
+            .navigationTitle("What to Watch Tonight?")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Done") { showingAISheet = false }
+                }
+            }
+        }
+    }
+
+    private func loadAISuggestion() {
+        isLoadingAI = true
+        aiSuggestion = nil
+        Task {
+            let backlog = shows.filter { !$0.isArchived }.compactMap { show -> (String, Int)? in
+                let count = show.backlogEpisodes.count
+                guard count > 0 else { return nil }
+                return (show.title, count)
+            }
+            let upcoming = shows.filter { !$0.isArchived }.compactMap { show -> (String, Int)? in
+                guard let ep = show.nextUpcomingEpisode, ep.airDate != .distantFuture else { return nil }
+                let days = Calendar.current.dateComponents([.day], from: Calendar.current.startOfDay(for: .now),
+                                                            to: Calendar.current.startOfDay(for: ep.airDate)).day ?? 0
+                return (show.title, days)
+            }
+            let watchedCount = shows.flatMap { $0.episodes }.filter { $0.isWatched }.count
+            let result = await ClaudeService.generateWatchRecommendation(
+                backlog: backlog.map { (showTitle: $0.0, count: $0.1) },
+                upcoming: upcoming.map { (showTitle: $0.0, daysUntil: $0.1) },
+                watchedCount: watchedCount
+            )
+            aiSuggestion = result
+            isLoadingAI = false
+        }
     }
 
     // MARK: - Helpers
@@ -272,6 +461,7 @@ struct NextUpView: View {
             group.addTask { await RefreshService.shared.refreshAllShows(modelContext: modelContext) }
             group.addTask { await RefreshService.shared.refreshAllMovies(modelContext: modelContext) }
             group.addTask { await RefreshService.shared.refreshAllTeams(modelContext: modelContext) }
+            group.addTask { await RefreshService.shared.refreshAllAnime(modelContext: modelContext) }
         }
     }
 }
@@ -578,6 +768,128 @@ struct UpcomingGameRow: View {
     }
 }
 
+// MARK: - Catch Up Row
+
+struct CatchUpRow: View {
+    let show: Show
+    let daysUntil: Int
+    let backlogCount: Int
+
+    private var posterURL: URL? {
+        guard let s = show.posterURL else { return nil }
+        return URL(string: s)
+    }
+
+    var body: some View {
+        HStack(spacing: 14) {
+            CachedAsyncImage(url: posterURL) { phase in
+                switch phase {
+                case .success(let image):
+                    image.resizable().aspectRatio(contentMode: .fill)
+                case .failure, .empty:
+                    Rectangle()
+                        .foregroundStyle(DS.Color.imagePlaceholder)
+                        .overlay { Image(systemName: "tv").foregroundStyle(.tertiary) }
+                @unknown default:
+                    Rectangle().foregroundStyle(DS.Color.imagePlaceholder)
+                }
+            }
+            .frame(width: 54, height: 81)
+            .clipShape(RoundedRectangle(cornerRadius: DS.Radius.md))
+
+            VStack(alignment: .leading, spacing: 5) {
+                Text(show.title)
+                    .font(.headline)
+                    .lineLimit(1)
+                Text("Season \(show.episodes.max(by: { $0.seasonNumber < $1.seasonNumber })?.seasonNumber ?? 1) returns in \(daysUntil) day\(daysUntil == 1 ? "" : "s")")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+                Spacer(minLength: 0)
+                Label("\(backlogCount) episode\(backlogCount == 1 ? "" : "s") behind", systemImage: "bolt.fill")
+                    .font(.caption)
+                    .fontWeight(.semibold)
+                    .foregroundStyle(.orange)
+            }
+            .padding(.vertical, 14)
+        }
+        .padding(.horizontal, 14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+// MARK: - Anime Episode Card
+
+struct AnimeEpisodeCard: View {
+    let show: AnimeShow
+    @Bindable var episode: AnimeEpisode
+
+    private var cal: Calendar { Calendar.current }
+    private var isToday: Bool { cal.isDateInToday(episode.airDate) }
+
+    private var daysUntil: Int {
+        let today = cal.startOfDay(for: .now)
+        return cal.dateComponents([.day], from: today, to: cal.startOfDay(for: episode.airDate)).day ?? 0
+    }
+
+    var body: some View {
+        HStack(spacing: 14) {
+            CachedAsyncImage(url: show.posterImageURL) { phase in
+                switch phase {
+                case .success(let image):
+                    image.resizable().aspectRatio(contentMode: .fill)
+                case .failure, .empty:
+                    Rectangle()
+                        .foregroundStyle(DS.Color.imagePlaceholder)
+                        .overlay { Image(systemName: "sparkles.tv").foregroundStyle(.tertiary) }
+                @unknown default:
+                    Rectangle().foregroundStyle(DS.Color.imagePlaceholder)
+                }
+            }
+            .frame(width: 54, height: 81)
+            .clipShape(RoundedRectangle(cornerRadius: DS.Radius.md))
+
+            VStack(alignment: .leading, spacing: 5) {
+                Text(show.displayTitle)
+                    .font(.headline)
+                    .lineLimit(1)
+                Text(episode.displayTitle)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                Spacer(minLength: 0)
+                if isToday {
+                    Label("New today", systemImage: "sparkles")
+                        .font(.caption)
+                        .fontWeight(.semibold)
+                        .foregroundStyle(.purple)
+                } else {
+                    HStack(spacing: 5) {
+                        Image(systemName: "calendar")
+                            .imageScale(.small)
+                            .foregroundStyle(.tertiary)
+                        Text(episode.airDate, style: .date)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        if daysUntil > 0 && daysUntil <= 7 {
+                            Text("in \(daysUntil)d")
+                                .font(.caption2)
+                                .fontWeight(.medium)
+                                .foregroundStyle(.white)
+                                .padding(.horizontal, 5)
+                                .padding(.vertical, 2)
+                                .background(Color.purple)
+                                .clipShape(Capsule())
+                        }
+                    }
+                }
+            }
+            .padding(.vertical, 14)
+        }
+        .padding(.horizontal, 14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
 // MARK: - Episode Context Menu Items (reusable)
 
 struct EpisodeContextMenuItems: View {
@@ -609,7 +921,7 @@ struct EpisodeContextMenuItems: View {
 
 private var nextUpPreviewContainer: ModelContainer = {
     let config = ModelConfiguration(isStoredInMemoryOnly: true)
-    let container = try! ModelContainer(for: Show.self, Episode.self, Movie.self, SportTeam.self, SportGame.self, configurations: config)
+    let container = try! ModelContainer(for: Show.self, Episode.self, Movie.self, SportTeam.self, SportGame.self, AnimeShow.self, AnimeEpisode.self, configurations: config)
     let ctx = container.mainContext
     let cal = Calendar.current
 

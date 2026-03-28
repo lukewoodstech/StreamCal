@@ -14,6 +14,9 @@ struct CalendarView: View {
     @Query(sort: \SportGame.gameDate)
     private var allGames: [SportGame]
 
+    @Query(sort: \AnimeEpisode.airDate)
+    private var allAnimeEpisodes: [AnimeEpisode]
+
     @State private var displayedMonth: Date = Calendar.current.startOfMonth(for: .now)
     @State private var selectedDate: Date = Calendar.current.startOfDay(for: .now)
 
@@ -21,7 +24,7 @@ struct CalendarView: View {
     private var today: Date { cal.startOfDay(for: .now) }
 
     private var calendarDays: [WatchPlanner.CalendarDay] {
-        WatchPlanner.calendarDays(from: allEpisodes, movies: allMovies, games: allGames)
+        WatchPlanner.calendarDays(from: allEpisodes, movies: allMovies, games: allGames, anime: allAnimeEpisodes)
     }
 
     // O(1) lookup: midnight-local date → CalendarDay
@@ -45,6 +48,7 @@ struct CalendarView: View {
     private var selectedEpisodes: [Episode] { selectedDay?.episodes ?? [] }
     private var selectedMovies: [Movie] { selectedDay?.movies ?? [] }
     private var selectedGames: [SportGame] { selectedDay?.games ?? [] }
+    private var selectedAnimeEpisodes: [AnimeEpisode] { selectedDay?.animeEpisodes ?? [] }
     private var selectedHasContent: Bool { !(selectedDay?.isEmpty ?? true) }
 
     var body: some View {
@@ -163,6 +167,25 @@ struct CalendarView: View {
                             .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
                             .listRowSeparator(.hidden)
                         }
+
+                        // Anime card
+                        if !selectedAnimeEpisodes.isEmpty {
+                            cardLabel("Anime")
+                            VStack(spacing: 0) {
+                                ForEach(Array(selectedAnimeEpisodes.enumerated()), id: \.element.persistentModelID) { index, ep in
+                                    CalendarAnimeRow(episode: ep)
+                                        .padding(.horizontal, 16)
+                                    if index < selectedAnimeEpisodes.count - 1 {
+                                        Divider().padding(.leading, 74)
+                                    }
+                                }
+                            }
+                            .background(Color(.systemBackground))
+                            .clipShape(RoundedRectangle(cornerRadius: DS.Radius.md, style: .continuous))
+                            .listRowBackground(Color.clear)
+                            .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
+                            .listRowSeparator(.hidden)
+                        }
                     }
                 } header: {
                     VStack(spacing: 0) {
@@ -172,6 +195,7 @@ struct CalendarView: View {
                             episodesByDate: episodesByDate,
                             moviesByDate: daysByDate.mapValues { $0.movies },
                             gamesByDate: daysByDate.mapValues { $0.games },
+                            animeByDate: daysByDate.mapValues { $0.animeEpisodes },
                             today: today,
                             maxMonth: latestContentMonth,
                             onMonthChanged: { newMonth in
@@ -229,6 +253,7 @@ struct CalendarView: View {
             group.addTask { await RefreshService.shared.refreshAllShows(modelContext: modelContext) }
             group.addTask { await RefreshService.shared.refreshAllMovies(modelContext: modelContext) }
             group.addTask { await RefreshService.shared.refreshAllTeams(modelContext: modelContext) }
+            group.addTask { await RefreshService.shared.refreshAllAnime(modelContext: modelContext) }
         }
     }
 
@@ -241,7 +266,8 @@ struct CalendarView: View {
             let parts: [String] = [
                 selectedEpisodes.isEmpty ? nil : "\(selectedEpisodes.count) show\(selectedEpisodes.count == 1 ? "" : "s")",
                 selectedMovies.isEmpty ? nil : "\(selectedMovies.count) movie\(selectedMovies.count == 1 ? "" : "s")",
-                selectedGames.isEmpty ? nil : "\(selectedGames.count) game\(selectedGames.count == 1 ? "" : "s")"
+                selectedGames.isEmpty ? nil : "\(selectedGames.count) game\(selectedGames.count == 1 ? "" : "s")",
+                selectedAnimeEpisodes.isEmpty ? nil : "\(selectedAnimeEpisodes.count) anime"
             ].compactMap { $0 }
             if !parts.isEmpty {
                 Text("· " + parts.joined(separator: " · "))
@@ -279,6 +305,7 @@ struct MonthGridView: View {
     let episodesByDate: [Date: [Episode]]
     var moviesByDate: [Date: [Movie]] = [:]
     var gamesByDate: [Date: [SportGame]] = [:]
+    var animeByDate: [Date: [AnimeEpisode]] = [:]
     let today: Date
     var maxMonth: Date = .distantFuture
     var onMonthChanged: ((Date) -> Void)? = nil
@@ -373,7 +400,7 @@ struct MonthGridView: View {
 
             // Dot legend
             HStack(spacing: 12) {
-                ForEach([(Color.accentColor, "Shows"), (DS.Color.movieTheaterRed, "Movies"), (Color.green, "Games")], id: \.1) { color, label in
+                ForEach([(Color.accentColor, "Shows"), (DS.Color.movieTheaterRed, "Movies"), (Color.green, "Games"), (Color.purple, "Anime")], id: \.1) { color, label in
                     HStack(spacing: 4) {
                         Circle().fill(color).frame(width: 5, height: 5)
                         Text(label).font(.caption2).foregroundStyle(.secondary)
@@ -394,7 +421,8 @@ struct MonthGridView: View {
                             isPast: date < today,
                             episodes: episodesByDate[date] ?? [],
                             movies: moviesByDate[date] ?? [],
-                            games: gamesByDate[date] ?? []
+                            games: gamesByDate[date] ?? [],
+                            anime: animeByDate[date] ?? []
                         )
                         .onTapGesture {
                             withAnimation(.easeInOut(duration: 0.15)) {
@@ -421,6 +449,7 @@ struct DayCell: View {
     let episodes: [Episode]
     var movies: [Movie] = []
     var games: [SportGame] = []
+    var anime: [AnimeEpisode] = []
 
     private var dayNumberColor: Color {
         if isSelected { return isToday ? .white : .primary }
@@ -428,13 +457,14 @@ struct DayCell: View {
         return .primary
     }
 
-    /// Up to 3 dots, one per content type present, colored by type.
+    /// Up to 4 dots, one per content type present, colored by type.
     private var dotColors: [Color] {
         var colors: [Color] = []
         if !episodes.isEmpty { colors.append(isToday ? .orange : .accentColor) }
         if !movies.isEmpty { colors.append(DS.Color.movieTheaterRed) }
         if !games.isEmpty { colors.append(.green) }
-        return Array(colors.prefix(3))
+        if !anime.isEmpty { colors.append(.purple) }
+        return Array(colors.prefix(4))
     }
 
     var body: some View {
@@ -626,6 +656,56 @@ struct CalendarGameRow: View {
             .padding(.vertical, 12)
 
             Spacer()
+        }
+    }
+}
+
+// MARK: - Calendar Anime Row
+
+struct CalendarAnimeRow: View {
+    let episode: AnimeEpisode
+
+    private var show: AnimeShow? { episode.show }
+    private var cal: Calendar { Calendar.current }
+    private var isToday: Bool { cal.isDateInToday(episode.airDate) }
+
+    var body: some View {
+        HStack(spacing: 14) {
+            CachedAsyncImage(url: show?.posterImageURL) { phase in
+                switch phase {
+                case .success(let image):
+                    image.resizable().aspectRatio(contentMode: .fill)
+                case .failure, .empty:
+                    Rectangle()
+                        .foregroundStyle(DS.Color.imagePlaceholder)
+                        .overlay { Image(systemName: "sparkles.tv").foregroundStyle(.tertiary) }
+                @unknown default:
+                    Rectangle().foregroundStyle(DS.Color.imagePlaceholder)
+                }
+            }
+            .frame(width: 44, height: 66)
+            .clipShape(RoundedRectangle(cornerRadius: DS.Radius.sm))
+
+            VStack(alignment: .leading, spacing: 5) {
+                Text(show?.displayTitle ?? "Unknown")
+                    .font(.headline)
+                    .lineLimit(1)
+                Text(episode.displayTitle)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                Spacer(minLength: 0)
+                if isToday {
+                    Label("New today", systemImage: "sparkles")
+                        .font(.caption).fontWeight(.semibold)
+                        .foregroundStyle(.purple)
+                } else {
+                    HStack(spacing: 4) {
+                        Image(systemName: "calendar").imageScale(.small).foregroundStyle(.tertiary)
+                        Text(episode.airDate, style: .date).font(.caption).foregroundStyle(.secondary)
+                    }
+                }
+            }
+            .padding(.vertical, 14)
         }
     }
 }

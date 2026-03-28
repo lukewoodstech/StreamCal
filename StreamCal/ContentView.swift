@@ -101,5 +101,6 @@ struct LibraryContainerView: View {
 
 #Preview {
     ContentView()
-        .modelContainer(for: [Show.self, Episode.self, Movie.self, SportTeam.self, SportGame.self], inMemory: true)
+        .modelContainer(for: [Show.self, Episode.self, Movie.self, SportTeam.self, SportGame.self, AnimeShow.self, AnimeEpisode.self], inMemory: true)
+
 }

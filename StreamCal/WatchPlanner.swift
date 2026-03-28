@@ -177,18 +177,20 @@ final class WatchPlanner {
         let episodes: [Episode]
         var movies: [Movie] = []
         var games: [SportGame] = []
+        var animeEpisodes: [AnimeEpisode] = []
         var isToday: Bool { Calendar.current.isDateInToday(date) }
         var isPast: Bool { date < Calendar.current.startOfDay(for: .now) }
-        var isEmpty: Bool { episodes.isEmpty && movies.isEmpty && games.isEmpty }
+        var isEmpty: Bool { episodes.isEmpty && movies.isEmpty && games.isEmpty && animeEpisodes.isEmpty }
     }
 
-    /// Groups episodes, movies, and games into calendar days from today forward with no upper limit.
+    /// Groups episodes, movies, games, and anime into calendar days from today forward with no upper limit.
     /// Excludes archived shows/movies, watched episodes, TBA dates, and past dates.
     /// Sorted by date ascending.
     static func calendarDays(
         from episodes: [Episode],
         movies: [Movie] = [],
-        games: [SportGame] = []
+        games: [SportGame] = [],
+        anime: [AnimeEpisode] = []
     ) -> [CalendarDay] {
         let cal = Calendar.current
         let today = cal.startOfDay(for: .now)
@@ -226,14 +228,26 @@ final class WatchPlanner {
             gameDict[day, default: []].append(game)
         }
 
+        // Anime episodes
+        let windowedAnime = anime.filter {
+            guard $0.show?.isArchived != true else { return false }
+            return !$0.isWatched && $0.airDate != .distantFuture && $0.airDate >= today
+        }
+        var animeDict: [Date: [AnimeEpisode]] = [:]
+        for ep in windowedAnime {
+            let day = cal.startOfDay(for: ep.airDate)
+            animeDict[day, default: []].append(ep)
+        }
+
         // Merge all dates
-        let allDates = Set(episodeDict.keys).union(movieDict.keys).union(gameDict.keys)
+        let allDates = Set(episodeDict.keys).union(movieDict.keys).union(gameDict.keys).union(animeDict.keys)
         return allDates.map { date in
             CalendarDay(
                 date: date,
                 episodes: (episodeDict[date] ?? []).sorted { $0.show?.title ?? "" < $1.show?.title ?? "" },
                 movies: (movieDict[date] ?? []).sorted { $0.title < $1.title },
-                games: (gameDict[date] ?? []).sorted { $0.gameDate < $1.gameDate }
+                games: (gameDict[date] ?? []).sorted { $0.gameDate < $1.gameDate },
+                animeEpisodes: (animeDict[date] ?? []).sorted { ($0.show?.displayTitle ?? "") < ($1.show?.displayTitle ?? "") }
             )
         }.sorted { $0.date < $1.date }
     }

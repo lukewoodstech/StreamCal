@@ -137,7 +137,10 @@ final class NotificationService {
         }
         showDays.sort { $0.date < $1.date }
 
-        let body = weeklySummaryBody(showDays)
+        // Try AI-generated body if Claude API key is configured
+        let upcoming = showDays.map { (title: $0.title, date: $0.date, type: "TV") }
+        let aiBody = await ClaudeService.generateWeeklySummary(upcoming: upcoming)
+        let body = aiBody ?? weeklySummaryBody(showDays)
 
         let content = UNMutableNotificationContent()
         content.title = "This week on StreamCal"
