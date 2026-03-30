@@ -284,16 +284,6 @@ struct LibraryAnimeRowView: View {
                     Text(anime.displayTitle)
                         .font(.headline)
                         .lineLimit(1)
-                    if backlogCount > 0 && nextEpisode != nil {
-                        Text("\(backlogCount) behind")
-                            .font(.caption2)
-                            .fontWeight(.medium)
-                            .foregroundStyle(.white)
-                            .padding(.horizontal, 5)
-                            .padding(.vertical, 2)
-                            .background(Color.orange)
-                            .clipShape(Capsule())
-                    }
                     Spacer()
                     Text("Anime")
                         .statusBadge(color: .purple)
@@ -447,6 +437,11 @@ struct ToastMessage: Equatable {
 struct ShowRowView: View {
     let show: Show
 
+    @AppStorage("preferredPlatforms") private var preferredPlatformsRaw: String = ""
+    private var preferredPlatforms: Set<String> {
+        Set(preferredPlatformsRaw.split(separator: ",").map(String.init))
+    }
+
     private var progress: ShowProgress { WatchPlanner.progress(for: show) }
 
     private var posterURL: URL? {
@@ -488,16 +483,6 @@ struct ShowRowView: View {
                             .imageScale(.small)
                             .foregroundStyle(.tertiary)
                     }
-                    if progress.backlogCount > 0 && show.nextUpcomingEpisode != nil {
-                        Text("\(progress.backlogCount) behind")
-                            .font(.caption2)
-                            .fontWeight(.medium)
-                            .foregroundStyle(.white)
-                            .padding(.horizontal, 5)
-                            .padding(.vertical, 2)
-                            .background(Color.orange)
-                            .clipShape(Capsule())
-                    }
                     Spacer()
                     PlatformBadges(show: show)
                 }
@@ -519,6 +504,17 @@ struct ShowRowView: View {
                         .font(.caption2)
                         .foregroundStyle(.tertiary)
                         .lineLimit(1)
+                }
+
+                // Provider signal — "Not in your lineup" if user has prefs and show isn't on any of them
+                if !preferredPlatforms.isEmpty, !show.watchProviderNames.isEmpty {
+                    let showPlatformRawValues = show.matchedStreamingPlatforms.map(\.rawValue)
+                    let hasMatch = showPlatformRawValues.contains { preferredPlatforms.contains($0) }
+                    if !hasMatch {
+                        Text("Not in your lineup")
+                            .font(.caption2)
+                            .foregroundStyle(.tertiary)
+                    }
                 }
             }
         }

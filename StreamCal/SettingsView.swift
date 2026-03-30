@@ -18,9 +18,13 @@ struct SettingsView: View {
     @State private var editingSlot: TimeSlot? = nil
     @State private var pickerDate: Date = .now
 
+    @Query private var teams: [SportTeam]
+
     @AppStorage("airReminderHour") private var airReminderHour: Int = 9
     @AppStorage("weeklySummaryEnabled") private var weeklySummaryEnabled: Bool = true
     @AppStorage("weeklySummaryHour") private var weeklySummaryHour: Int = 20
+    @AppStorage("gameReminderMinutesBefore") private var gameReminderMinutesBefore: Int = 120
+    @AppStorage("advanceReminderEnabled") private var advanceReminderEnabled: Bool = false
     @AppStorage("claudeAPIKey") private var claudeAPIKey: String = ""
     @AppStorage("preferredPlatforms") private var preferredPlatformsRaw: String = ""
 
@@ -94,6 +98,17 @@ struct SettingsView: View {
                                 editingSlot = .weekly
                             }
                         }
+
+                        Toggle("24-hour advance reminder", isOn: $advanceReminderEnabled)
+                            .onChange(of: advanceReminderEnabled) { _, _ in rescheduleNotifications() }
+
+                        Picker("Game reminder", selection: $gameReminderMinutesBefore) {
+                            Text("15 min before").tag(15)
+                            Text("30 min before").tag(30)
+                            Text("1 hour before").tag(60)
+                            Text("2 hours before").tag(120)
+                        }
+                        .onChange(of: gameReminderMinutesBefore) { _, _ in rescheduleTeamNotifications() }
 
                     case .denied:
                         VStack(alignment: .leading, spacing: 6) {
@@ -254,26 +269,40 @@ struct SettingsView: View {
 
     private var platformSection: some View {
         Section {
-            ForEach(platformsForPicker) { platform in
-                Button {
-                    togglePlatform(platform.rawValue)
-                } label: {
-                    HStack {
-                        Text(platform.rawValue)
-                            .foregroundStyle(.primary)
-                        Spacer()
-                        if preferredPlatforms.contains(platform.rawValue) {
-                            Image(systemName: "checkmark")
-                                .foregroundStyle(Color.accentColor)
-                                .fontWeight(.semibold)
+            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
+                ForEach(platformsForPicker) { platform in
+                    let selected = preferredPlatforms.contains(platform.rawValue)
+                    Button {
+                        togglePlatform(platform.rawValue)
+                    } label: {
+                        HStack(spacing: 6) {
+                            Text(platform.rawValue)
+                                .font(.subheadline)
+                                .fontWeight(.medium)
+                                .lineLimit(1)
+                                .foregroundStyle(selected ? .white : platform.badgeColor)
+                            if selected {
+                                Image(systemName: "checkmark")
+                                    .font(.caption)
+                                    .fontWeight(.bold)
+                                    .foregroundStyle(.white)
+                            }
                         }
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 10)
+                        .frame(maxWidth: .infinity)
+                        .background(selected ? platform.badgeColor : platform.badgeColor.opacity(0.12))
+                        .clipShape(RoundedRectangle(cornerRadius: 10))
                     }
+                    .buttonStyle(.plain)
                 }
             }
+            .listRowBackground(Color.clear)
+            .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
         } header: {
             Text("Preferred Streaming Services")
         } footer: {
-            Text("Preferred services appear at the top of search suggestions.")
+            Text("Shows and movies not available on your services are flagged in the library.")
         }
     }
 
@@ -322,6 +351,14 @@ struct SettingsView: View {
     private func rescheduleNotifications() {
         Task {
             await NotificationService.shared.scheduleNotifications(for: shows)
+        }
+    }
+
+    private func rescheduleTeamNotifications() {
+        Task {
+            for team in teams {
+                await NotificationService.shared.scheduleNotifications(for: team)
+            }
         }
     }
 

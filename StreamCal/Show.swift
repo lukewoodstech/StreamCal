@@ -68,6 +68,31 @@ enum StreamingPlatform: String, CaseIterable, Codable, Hashable, Identifiable {
         }
     }
 
+    /// Fuzzy-match a TMDB watch provider name (e.g. "Amazon Prime Video") to a StreamingPlatform case.
+    static func match(providerName: String) -> StreamingPlatform? {
+        let name = providerName.lowercased()
+        if name.contains("netflix")                              { return .netflix }
+        if name.contains("hulu")                                 { return .hulu }
+        if name.contains("disney")                               { return .disneyPlus }
+        if name.contains("max") || name.contains("hbo")         { return .max }
+        if name.contains("apple")                                { return .appleTV }
+        if name.contains("amazon") || name.contains("prime")    { return .amazonPrime }
+        if name.contains("peacock")                              { return .peacock }
+        if name.contains("paramount") || name.contains("showtime") { return .paramountPlus }
+        if name.contains("starz")                                { return .starz }
+        if name.contains("mgm")                                  { return .mgmPlus }
+        if name.contains("amc")                                  { return .amcPlus }
+        if name.contains("crunchyroll")                          { return .crunchyroll }
+        if name.contains("discovery")                            { return .discoveryPlus }
+        if name.contains("espn")                                 { return .espnPlus }
+        if name.contains("britbox")                              { return .britbox }
+        if name.contains("shudder")                              { return .shudder }
+        if name.contains("fubo")                                 { return .fubo }
+        if name.contains("tubi")                                 { return .tubi }
+        if name.contains("pluto")                                { return .plutoTV }
+        return nil
+    }
+
     var webURL: URL? {
         let str: String
         switch self {
@@ -124,6 +149,9 @@ final class Show: Identifiable {
     /// Empty for shows added before multi-platform support — fall back to `platform`.
     var platforms: [String] = []
 
+    /// Streaming service names from TMDB watch/providers (US flatrate). Populated on import and refresh.
+    var watchProviderNames: [String] = []
+
     @Relationship(deleteRule: .cascade, inverse: \Episode.show)
     var episodes: [Episode] = []
 
@@ -149,6 +177,11 @@ final class Show: Identifiable {
         self.posterURL = posterURL
         self.overview = overview
         self.showStatus = showStatus
+    }
+
+    /// Watch providers matched to StreamingPlatform cases for UI display.
+    var matchedStreamingPlatforms: [StreamingPlatform] {
+        watchProviderNames.compactMap { StreamingPlatform.match(providerName: $0) }
     }
 
     /// The next episode the user should watch: the earliest unwatched aired episode,

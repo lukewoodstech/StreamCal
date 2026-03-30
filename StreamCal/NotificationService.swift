@@ -50,6 +50,9 @@ final class NotificationService {
         }
         for episode in futureEpisodes {
             await scheduleAirDateNotification(for: episode, showTitle: show.title)
+            if advanceReminderEnabled {
+                await scheduleAdvanceReminder(for: episode, showTitle: show.title)
+            }
         }
     }
 
@@ -67,8 +70,8 @@ final class NotificationService {
     // MARK: - Cancel
 
     func cancelNotifications(for show: Show) async {
-        let ids = show.episodes.map { ep in
-            notificationID(for: ep, suffix: "air")
+        let ids = show.episodes.flatMap { ep in
+            [notificationID(for: ep, suffix: "air"), notificationID(for: ep, suffix: "advance")]
         }
         center.removePendingNotificationRequests(withIdentifiers: ids)
     }
@@ -89,6 +92,10 @@ final class NotificationService {
         return (stored as? Int) ?? 20
     }
 
+    private var advanceReminderEnabled: Bool {
+        UserDefaults.standard.bool(forKey: "advanceReminderEnabled")
+    }
+
     // MARK: - Private
 
     private func scheduleAirDateNotification(for episode: Episode, showTitle: String) async {
@@ -106,6 +113,29 @@ final class NotificationService {
         let trigger = UNCalendarNotificationTrigger(dateMatching: dateComponents, repeats: false)
         let request = UNNotificationRequest(identifier: id, content: content, trigger: trigger)
 
+        try? await center.add(request)
+    }
+
+    private func scheduleAdvanceReminder(for episode: Episode, showTitle: String) async {
+        let fireDate = episode.airDate.addingTimeInterval(-24 * 3600)
+        guard fireDate > .now else { return }
+
+        let id = notificationID(for: episode, suffix: "advance")
+        let code = "S\(String(format: "%02d", episode.seasonNumber))E\(String(format: "%02d", episode.episodeNumber))"
+        let body = episode.title.isEmpty
+            ? "Airs tomorrow: \(code)"
+            : "Airs tomorrow: \(code) \u{2014} \(episode.title)"
+
+        let content = UNMutableNotificationContent()
+        content.title = showTitle
+        content.body = body
+        content.sound = .default
+
+        let components = Calendar.current.dateComponents(
+            [.year, .month, .day, .hour, .minute], from: fireDate
+        )
+        let trigger = UNCalendarNotificationTrigger(dateMatching: components, repeats: false)
+        let request = UNNotificationRequest(identifier: id, content: content, trigger: trigger)
         try? await center.add(request)
     }
 

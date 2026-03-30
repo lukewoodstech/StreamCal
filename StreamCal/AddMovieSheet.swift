@@ -16,6 +16,7 @@ struct AddMovieSheet: View {
     @State private var importError: String? = nil
     @State private var searchTask: Task<Void, Never>? = nil
     @State private var libraryTMDBIDs: Set<Int> = []
+    @State private var libraryMoviesByTMDBID: [Int: Movie] = [:]
 
     var body: some View {
         NavigationStack {
@@ -52,30 +53,31 @@ struct AddMovieSheet: View {
                             .padding(.vertical, 20)
                     } else if !suggestions.isEmpty {
                         Section("Upcoming in Theaters") {
-                            ForEach(suggestions) { movie in
-                                let alreadyAdded = libraryTMDBIDs.contains(movie.id)
+                            ForEach(suggestions.filter { !libraryTMDBIDs.contains($0.id) }) { movie in
                                 Button {
-                                    guard !alreadyAdded else { return }
                                     Task { await importMovie(movie) }
                                 } label: {
-                                    MovieSearchResultRow(movie: movie, alreadyAdded: alreadyAdded)
+                                    MovieSearchResultRow(movie: movie, alreadyAdded: false)
                                 }
                                 .buttonStyle(.plain)
-                                .disabled(alreadyAdded)
                             }
                         }
                     }
                 } else {
                     ForEach(results) { movie in
                         let alreadyAdded = libraryTMDBIDs.contains(movie.id)
-                        Button {
-                            guard !alreadyAdded else { return }
-                            Task { await importMovie(movie) }
-                        } label: {
-                            MovieSearchResultRow(movie: movie, alreadyAdded: alreadyAdded)
+                        if alreadyAdded, let existing = libraryMoviesByTMDBID[movie.id] {
+                            NavigationLink(destination: MovieDetailView(movie: existing)) {
+                                MovieSearchResultRow(movie: movie, alreadyAdded: true)
+                            }
+                        } else {
+                            Button {
+                                Task { await importMovie(movie) }
+                            } label: {
+                                MovieSearchResultRow(movie: movie, alreadyAdded: false)
+                            }
+                            .buttonStyle(.plain)
                         }
-                        .buttonStyle(.plain)
-                        .disabled(alreadyAdded)
                     }
                 }
             }
@@ -117,6 +119,9 @@ struct AddMovieSheet: View {
         let descriptor = FetchDescriptor<Movie>()
         if let movies = try? modelContext.fetch(descriptor) {
             libraryTMDBIDs = Set(movies.compactMap { $0.tmdbID })
+            libraryMoviesByTMDBID = Dictionary(uniqueKeysWithValues: movies.compactMap { movie in
+                movie.tmdbID.map { ($0, movie) }
+            })
         }
     }
 
@@ -148,7 +153,9 @@ struct AddMovieSheet: View {
         isImporting = true
         importError = nil
         do {
+            async let providersFetch = TMDBService.shared.fetchWatchProviders(tmdbID: tmdbMovie.id, mediaType: "movie")
             let details = try await TMDBService.shared.fetchMovieDetails(tmdbID: tmdbMovie.id)
+            let providers = (try? await providersFetch) ?? []
 
             let movie = Movie(
                 title: tmdbMovie.title,
@@ -161,6 +168,7 @@ struct AddMovieSheet: View {
                 streamingReleaseDate: details.usStreamingDate(),
                 tmdbStatus: details.status
             )
+            movie.watchProviderNames = providers.map(\.providerName)
             modelContext.insert(movie)
             try? modelContext.save()
 

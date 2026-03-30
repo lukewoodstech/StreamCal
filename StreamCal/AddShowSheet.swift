@@ -333,7 +333,9 @@ struct AddShowSheet: View {
             show.platforms = matchedPlatforms
             modelContext.insert(show)
 
+            async let providersFetch = TMDBService.shared.fetchWatchProviders(tmdbID: tmdbShow.id, mediaType: "tv")
             let allEpisodes = try await TMDBService.shared.fetchAllEpisodes(tmdbID: tmdbShow.id)
+            show.watchProviderNames = (try? await providersFetch)?.map(\.providerName) ?? []
             for ep in allEpisodes {
                 let airDate = ep.parsedAirDate ?? Date.distantFuture
                 let episode = Episode(

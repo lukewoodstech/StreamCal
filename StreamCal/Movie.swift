@@ -27,6 +27,8 @@ final class Movie {
     var isWatched: Bool = false
     var watchedAt: Date?
     var platforms: [String] = []
+    /// Streaming service names from TMDB watch/providers (US flatrate). Populated on import and refresh.
+    var watchProviderNames: [String] = []
     var notificationsEnabled: Bool = true
     var isArchived: Bool = false
     var createdAt: Date
@@ -67,6 +69,11 @@ final class Movie {
         if theatricalReleaseDate <= today { return .released }
         let days = Calendar.current.dateComponents([.day], from: today, to: theatricalReleaseDate).day ?? Int.max
         return days <= 90 ? .comingSoon : .announced
+    }
+
+    /// Watch providers matched to StreamingPlatform cases for UI display.
+    var matchedStreamingPlatforms: [StreamingPlatform] {
+        watchProviderNames.compactMap { StreamingPlatform.match(providerName: $0) }
     }
 
     var posterImageURL: URL? {

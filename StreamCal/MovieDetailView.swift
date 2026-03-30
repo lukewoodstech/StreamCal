@@ -88,8 +88,27 @@ struct MovieDetailView: View {
         }
     }
 
+    private var watchPlatforms: [StreamingPlatform] { movie.matchedStreamingPlatforms }
+
     private var infoSection: some View {
         Section {
+            if !watchPlatforms.isEmpty {
+                LabeledContent("Watch On") {
+                    HStack(spacing: 4) {
+                        ForEach(watchPlatforms.prefix(3), id: \.self) { platform in
+                            if let url = platform.webURL {
+                                Link(destination: url) {
+                                    Text(platform.rawValue)
+                                        .statusBadge(color: platform.badgeColor)
+                                }
+                            } else {
+                                Text(platform.rawValue)
+                                    .statusBadge(color: platform.badgeColor)
+                            }
+                        }
+                    }
+                }
+            }
             if let tagline = movie.tagline, !tagline.isEmpty {
                 Text("\"\(tagline)\"")
                     .font(.subheadline)

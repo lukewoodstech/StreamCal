@@ -176,7 +176,12 @@ struct AddTeamSheet: View {
 
     @ViewBuilder
     private var resultRows: some View {
-        ForEach(results) { result in
+        // When browsing a league (not searching), hide already-added teams entirely.
+        // When searching, show them with a checkmark so users know they're tracked.
+        let displayResults = (browsingLeague != nil && searchText.isEmpty)
+            ? results.filter { !libraryTeamIDs.contains($0.nativeID) }
+            : results
+        ForEach(displayResults) { result in
             let alreadyAdded = libraryTeamIDs.contains(result.nativeID)
             Button {
                 guard !alreadyAdded else { return }

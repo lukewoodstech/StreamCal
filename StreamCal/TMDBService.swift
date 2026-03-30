@@ -182,6 +182,28 @@ struct TMDBReleaseDate: Decodable, Sendable {
     }
 }
 
+// MARK: - Watch Provider Response Models
+
+struct WatchProviderResult: Codable, Sendable {
+    let providerID: Int
+    let providerName: String
+    let logoPath: String?
+
+    enum CodingKeys: String, CodingKey {
+        case providerID = "provider_id"
+        case providerName = "provider_name"
+        case logoPath = "logo_path"
+    }
+}
+
+private struct WatchProvidersResponse: Decodable, Sendable {
+    let results: [String: CountryProviders]
+
+    struct CountryProviders: Decodable, Sendable {
+        let flatrate: [WatchProviderResult]?
+    }
+}
+
 // MARK: - TMDB Service
 
 final class TMDBService: Sendable {
@@ -284,6 +306,17 @@ final class TMDBService: Sendable {
         ])
         let (data, _) = try await session.data(for: req)
         return try JSONDecoder().decode(TMDBMovie.self, from: data)
+    }
+
+    // MARK: - Watch Providers
+
+    /// Returns US streaming services (flatrate) for a given TMDB ID.
+    /// mediaType is "tv" or "movie".
+    func fetchWatchProviders(tmdbID: Int, mediaType: String) async throws -> [WatchProviderResult] {
+        let req = try request(path: "/\(mediaType)/\(tmdbID)/watch/providers")
+        let (data, _) = try await session.data(for: req)
+        let response = try JSONDecoder().decode(WatchProvidersResponse.self, from: data)
+        return response.results["US"]?.flatrate ?? []
     }
 
     // MARK: - Upcoming Movies

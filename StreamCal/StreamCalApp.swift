@@ -6,9 +6,11 @@ struct StreamCalApp: App {
 
     init() {
         UserDefaults.standard.register(defaults: [
-            "airReminderHour": 9,           // 9:00 AM — new episode air-date reminder
-            "weeklySummaryEnabled": true,   // Sunday summary on by default
-            "weeklySummaryHour": 20         // 8:00 PM Sunday
+            "airReminderHour": 9,               // 9:00 AM — new episode air-date reminder
+            "weeklySummaryEnabled": true,       // Sunday summary on by default
+            "weeklySummaryHour": 20,            // 8:00 PM Sunday
+            "gameReminderMinutesBefore": 120,   // 2 hours before game
+            "advanceReminderEnabled": false     // 24h-before episode reminders off by default
         ])
     }
 

@@ -119,6 +119,11 @@ struct MoviesView: View {
 struct MovieRowView: View {
     let movie: Movie
 
+    @AppStorage("preferredPlatforms") private var preferredPlatformsRaw: String = ""
+    private var preferredPlatforms: Set<String> {
+        Set(preferredPlatformsRaw.split(separator: ",").map(String.init))
+    }
+
     var body: some View {
         HStack(spacing: 12) {
             CachedAsyncImage(url: movie.posterImageURL.flatMap {
@@ -161,6 +166,16 @@ struct MovieRowView: View {
                     Text(movie.genres.prefix(2).joined(separator: " · "))
                         .font(.caption2)
                         .foregroundStyle(.tertiary)
+                }
+
+                if !preferredPlatforms.isEmpty, !movie.watchProviderNames.isEmpty {
+                    let moviePlatformRawValues = movie.matchedStreamingPlatforms.map(\.rawValue)
+                    let hasMatch = moviePlatformRawValues.contains { preferredPlatforms.contains($0) }
+                    if !hasMatch {
+                        Text("Not in your lineup")
+                            .font(.caption2)
+                            .foregroundStyle(.tertiary)
+                    }
                 }
             }
         }

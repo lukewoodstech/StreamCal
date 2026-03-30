@@ -111,10 +111,29 @@ struct ShowDetailView: View {
 
     // MARK: - Info
 
+    private var watchPlatforms: [StreamingPlatform] { show.matchedStreamingPlatforms }
+
     private var showInfoSection: some View {
         Section("Info") {
             LabeledContent("Platform") {
                 PlatformBadges(show: show)
+            }
+            if !watchPlatforms.isEmpty {
+                LabeledContent("Watch On") {
+                    HStack(spacing: 4) {
+                        ForEach(watchPlatforms.prefix(3), id: \.self) { platform in
+                            if let url = platform.webURL {
+                                Link(destination: url) {
+                                    Text(platform.rawValue)
+                                        .statusBadge(color: platform.badgeColor)
+                                }
+                            } else {
+                                Text(platform.rawValue)
+                                    .statusBadge(color: platform.badgeColor)
+                            }
+                        }
+                    }
+                }
             }
             if let status = show.showStatus, !status.isEmpty {
                 LabeledContent("Status", value: status)

@@ -48,6 +48,9 @@ final class RefreshService {
             movie.streamingReleaseDate = details.usStreamingDate()
             movie.tmdbStatus = details.status
             movie.updatedAt = .now
+            if let providers = try? await TMDBService.shared.fetchWatchProviders(tmdbID: tmdbID, mediaType: "movie") {
+                movie.watchProviderNames = providers.map(\.providerName)
+            }
         }
 
         try? modelContext.save()
@@ -215,6 +218,9 @@ final class RefreshService {
         // Sync show-level metadata that can change over time
         if let status = details.status, !status.isEmpty {
             show.showStatus = status
+        }
+        if let providers = try? await TMDBService.shared.fetchWatchProviders(tmdbID: tmdbID, mediaType: "tv") {
+            show.watchProviderNames = providers.map(\.providerName)
         }
 
         // Build a lookup of existing episodes keyed by "season-episode"
