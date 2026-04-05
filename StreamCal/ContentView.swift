@@ -9,33 +9,30 @@ enum LibraryContentType: String, CaseIterable {
 
 struct ContentView: View {
     @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
+    @State private var selectedTab: Int = 0
 
     var body: some View {
         if !hasCompletedOnboarding {
             OnboardingView()
         } else {
-        TabView {
-            CalendarView()
-                .tabItem {
-                    Label("Calendar", systemImage: "calendar")
-                }
-
-            NextUpView()
-                .tabItem {
-                    Label("Next Up", systemImage: "play.circle.fill")
-                }
-
-            LibraryContainerView()
-                .tabItem {
-                    Label("Library", systemImage: "rectangle.stack.fill")
-                }
-
-            SettingsView()
-                .tabItem {
-                    Label("Settings", systemImage: "gearshape.fill")
-                }
+            ZStack {
+                CalendarView()
+                    .opacity(selectedTab == 0 ? 1 : 0)
+                    .allowsHitTesting(selectedTab == 0)
+                LibraryContainerView()
+                    .opacity(selectedTab == 1 ? 1 : 0)
+                    .allowsHitTesting(selectedTab == 1)
+                NextUpView()
+                    .opacity(selectedTab == 2 ? 1 : 0)
+                    .allowsHitTesting(selectedTab == 2)
+                SettingsView()
+                    .opacity(selectedTab == 3 ? 1 : 0)
+                    .allowsHitTesting(selectedTab == 3)
+            }
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                FloatingTabBar(selectedTab: $selectedTab)
+            }
         }
-        } // end onboarding check
     }
 }
 
@@ -45,14 +42,15 @@ struct LibraryContainerView: View {
     @State private var contentType: LibraryContentType = .shows
     @State private var showingAdd = false
     @State private var addedTitle: String? = nil
+    @State private var searchText: String = ""
 
     var body: some View {
         NavigationStack {
             Group {
                 switch contentType {
-                case .shows:   LibraryView(standalone: false, onAdd: { showingAdd = true })
-                case .movies:  MoviesView(onAdd: { showingAdd = true })
-                case .sports:  SportsView(onAdd: { showingAdd = true })
+                case .shows:   LibraryView(standalone: false, searchText: searchText, onAdd: { showingAdd = true })
+                case .movies:  MoviesView(searchText: searchText, onAdd: { showingAdd = true })
+                case .sports:  SportsView(searchText: searchText, onAdd: { showingAdd = true })
                 }
             }
             .background(Color(.systemGroupedBackground))
@@ -71,6 +69,7 @@ struct LibraryContainerView: View {
                     .padding(.horizontal, 16)
                     .padding(.top, 8)
                     .padding(.bottom, 4)
+
                     Picker("Content Type", selection: $contentType) {
                         ForEach(LibraryContentType.allCases, id: \.self) { type in
                             Text(type.rawValue).tag(type)
@@ -79,7 +78,29 @@ struct LibraryContainerView: View {
                     .pickerStyle(.segmented)
                     .padding(.horizontal, 16)
                     .padding(.top, 4)
-                    .padding(.bottom, 12)
+                    .padding(.bottom, 8)
+                    .onChange(of: contentType) { _, _ in searchText = "" }
+
+                    // Search bar
+                    HStack(spacing: 8) {
+                        Image(systemName: "magnifyingglass")
+                            .foregroundStyle(.tertiary)
+                        TextField("Search", text: $searchText)
+                            .autocorrectionDisabled()
+                        if !searchText.isEmpty {
+                            Button { searchText = "" } label: {
+                                Image(systemName: "xmark.circle.fill")
+                                    .foregroundStyle(.tertiary)
+                            }
+                        }
+                    }
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 8)
+                    .background(Color(.systemGray6))
+                    .clipShape(RoundedRectangle(cornerRadius: 10))
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 10)
+
                     Divider()
                 }
                 .background(Color(.systemGroupedBackground))

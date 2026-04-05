@@ -3,6 +3,7 @@ import SwiftData
 
 struct SportsView: View {
 
+    var searchText: String = ""
     var onAdd: (() -> Void)? = nil
 
     @Environment(\.modelContext) private var modelContext
@@ -11,6 +12,13 @@ struct SportsView: View {
     private var teams: [SportTeam]
 
     @State private var toast: ToastMessage? = nil
+
+    private var isSearching: Bool { !searchText.isEmpty }
+
+    private var filteredTeams: [SportTeam] {
+        let q = searchText.lowercased()
+        return teams.filter { $0.name.lowercased().contains(q) || $0.league.lowercased().contains(q) }
+    }
 
     /// Sport display order and icon mapping
     private let sportOrder = ["NFL", "NBA", "MLB", "NHL", "Soccer", "Basketball",
@@ -29,7 +37,20 @@ struct SportsView: View {
 
     var body: some View {
         Group {
-            if teams.isEmpty {
+            if isSearching {
+                if filteredTeams.isEmpty {
+                    ContentUnavailableView.search(text: searchText)
+                } else {
+                    List {
+                        ForEach(filteredTeams) { team in
+                            NavigationLink(destination: TeamDetailView(team: team, onDeleted: { name in toast = .removed(name) })) {
+                                TeamRowView(team: team)
+                            }
+                        }
+                    }
+                    .listStyle(.insetGrouped)
+                }
+            } else if teams.isEmpty {
                 ContentUnavailableView {
                     Label("No Teams Yet", systemImage: "sportscourt.fill")
                 } description: {

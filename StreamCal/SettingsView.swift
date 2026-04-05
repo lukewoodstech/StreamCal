@@ -9,38 +9,14 @@ struct SettingsView: View {
     @Query private var shows: [Show]
     @Query private var episodes: [Episode]
 
+    @EnvironmentObject private var purchaseService: PurchaseService
+
     @State private var showingDeleteAllConfirm = false
     @State private var showingDeletedBanner = false
-    @State private var notificationStatus: UNAuthorizationStatus = .notDetermined
-
-    // Notification time picker modal
-    private enum TimeSlot { case air, weekly }
-    @State private var editingSlot: TimeSlot? = nil
-    @State private var pickerDate: Date = .now
-
-    @Query private var teams: [SportTeam]
-
-    @AppStorage("airReminderHour") private var airReminderHour: Int = 9
-    @AppStorage("weeklySummaryEnabled") private var weeklySummaryEnabled: Bool = true
-    @AppStorage("weeklySummaryHour") private var weeklySummaryHour: Int = 20
-    @AppStorage("gameReminderMinutesBefore") private var gameReminderMinutesBefore: Int = 120
-    @AppStorage("advanceReminderEnabled") private var advanceReminderEnabled: Bool = false
-    @AppStorage("claudeAPIKey") private var claudeAPIKey: String = ""
-    @AppStorage("preferredPlatforms") private var preferredPlatformsRaw: String = ""
-
-    private var preferredPlatforms: Set<String> {
-        get { Set(preferredPlatformsRaw.split(separator: ",").map(String.init)) }
-    }
-
-    private var platformsForPicker: [StreamingPlatform] {
-        StreamingPlatform.allCases.filter { $0 != .other }
-    }
-
-    private func togglePlatform(_ platform: String) {
-        var platforms = preferredPlatforms
-        if platforms.contains(platform) { platforms.remove(platform) } else { platforms.insert(platform) }
-        preferredPlatformsRaw = platforms.sorted().joined(separator: ",")
-    }
+    @State private var showingNotifications = false
+    @State private var showingPlatforms = false
+    @State private var showingPaywall = false
+    @State private var showingCustomerCenter = false
 
     private var appVersion: String {
         Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "—"
@@ -54,108 +30,121 @@ struct SettingsView: View {
         NavigationStack {
             ZStack {
                 Form {
-                Section("About") {
-                    LabeledContent("Version", value: "\(appVersion) (\(buildNumber))")
-                    LabeledContent("Shows", value: "\(shows.count)")
-                    LabeledContent("Episodes", value: "\(episodes.count)")
-                    Link(destination: URL(string: "https://lukewoodstech.github.io/streamcal-privacy")!) {
+                    Section {
                         HStack {
-                            Text("Privacy Policy")
                             Spacer()
-                            Image(systemName: "arrow.up.right")
-                                .imageScale(.small)
-                                .foregroundStyle(.tertiary)
+                            VStack(spacing: 10) {
+                                BrandMark(size: 44, showBackground: true)
+                                Text("StreamCal")
+                                    .font(.headline)
+                                    .fontWeight(.semibold)
+                                Text("Version \(appVersion) (\(buildNumber))")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                        }
+                        .padding(.vertical, 12)
+                        .listRowBackground(Color.clear)
+                    }
+
+                    Section("About") {
+                        LabeledContent("Shows", value: "\(shows.count)")
+                        LabeledContent("Shows", value: "\(shows.count)")
+                        LabeledContent("Episodes", value: "\(episodes.count)")
+                        Link(destination: URL(string: "https://lukewoodstech.github.io/streamcal-privacy")!) {
+                            HStack {
+                                Text("Privacy Policy")
+                                Spacer()
+                                Image(systemName: "arrow.up.right")
+                                    .imageScale(.small)
+                                    .foregroundStyle(.tertiary)
+                            }
+                        }
+                        Link(destination: URL(string: "mailto:luke@lukewoodstech.com")!) {
+                            HStack {
+                                Text("Contact / Support")
+                                Spacer()
+                                Image(systemName: "arrow.up.right")
+                                    .imageScale(.small)
+                                    .foregroundStyle(.tertiary)
+                            }
                         }
                     }
-                    Link(destination: URL(string: "mailto:luke@lukewoodstech.com")!) {
-                        HStack {
-                            Text("Contact / Support")
-                            Spacer()
-                            Image(systemName: "arrow.up.right")
-                                .imageScale(.small)
-                                .foregroundStyle(.tertiary)
-                        }
-                    }
-                }
 
-                Section("Notifications") {
-                    switch notificationStatus {
-                    case .authorized:
-                        Label("Enabled", systemImage: "bell.fill")
-                            .foregroundStyle(.green)
-
-                        timeRow(label: "New episode reminder", hour: airReminderHour) {
-                            pickerDate = dateFromHour(airReminderHour)
-                            editingSlot = .air
-                        }
-
-                        Toggle("Weekly summary", isOn: $weeklySummaryEnabled)
-                            .onChange(of: weeklySummaryEnabled) { _, _ in rescheduleNotifications() }
-
-                        if weeklySummaryEnabled {
-                            timeRow(label: "Sunday summary time", hour: weeklySummaryHour) {
-                                pickerDate = dateFromHour(weeklySummaryHour)
-                                editingSlot = .weekly
+                    Section("Personalize") {
+                        Button { showingNotifications = true } label: {
+                            HStack {
+                                Label("Notifications", systemImage: "bell")
+                                    .foregroundStyle(.primary)
+                                Spacer()
+                                Image(systemName: "chevron.right")
+                                    .imageScale(.small)
+                                    .fontWeight(.semibold)
+                                    .foregroundStyle(.tertiary)
                             }
                         }
 
-                        Toggle("24-hour advance reminder", isOn: $advanceReminderEnabled)
-                            .onChange(of: advanceReminderEnabled) { _, _ in rescheduleNotifications() }
-
-                        Picker("Game reminder", selection: $gameReminderMinutesBefore) {
-                            Text("15 min before").tag(15)
-                            Text("30 min before").tag(30)
-                            Text("1 hour before").tag(60)
-                            Text("2 hours before").tag(120)
+                        Button { showingPlatforms = true } label: {
+                            HStack {
+                                Label("Streaming Services", systemImage: "play.tv")
+                                    .foregroundStyle(.primary)
+                                Spacer()
+                                Image(systemName: "chevron.right")
+                                    .imageScale(.small)
+                                    .fontWeight(.semibold)
+                                    .foregroundStyle(.tertiary)
+                            }
                         }
-                        .onChange(of: gameReminderMinutesBefore) { _, _ in rescheduleTeamNotifications() }
+                    }
 
-                    case .denied:
-                        VStack(alignment: .leading, spacing: 6) {
-                            Label("Disabled", systemImage: "bell.slash")
-                                .foregroundStyle(.orange)
-                            Text("Enable notifications in iOS Settings to get episode reminders.")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                            Button("Open Settings") {
-                                if let url = URL(string: UIApplication.openSettingsURLString) {
-                                    UIApplication.shared.open(url)
+                    Section("Smart Features") {
+                        if purchaseService.isPro {
+                            HStack {
+                                Label("StreamCal Pro", systemImage: "sparkles")
+                                    .foregroundStyle(DS.Color.ai)
+                                Spacer()
+                                Text("Active")
+                                    .font(.subheadline)
+                                    .foregroundStyle(.secondary)
+                            }
+                            Button {
+                                showingCustomerCenter = true
+                            } label: {
+                                HStack {
+                                    Text("Manage Subscription")
+                                        .foregroundStyle(.primary)
+                                    Spacer()
+                                    Image(systemName: "chevron.right")
+                                        .imageScale(.small)
+                                        .fontWeight(.semibold)
+                                        .foregroundStyle(.tertiary)
                                 }
                             }
-                            .font(.caption)
-                        }
-                    case .notDetermined:
-                        Button("Enable Episode Notifications") {
-                            Task {
-                                await NotificationService.shared.requestPermission()
-                                notificationStatus = await NotificationService.shared.authorizationStatus()
+                        } else {
+                            Button {
+                                showingPaywall = true
+                            } label: {
+                                HStack {
+                                    Label("Upgrade to Pro", systemImage: "sparkles")
+                                        .foregroundStyle(Color.accentColor)
+                                    Spacer()
+                                    Image(systemName: "chevron.right")
+                                        .imageScale(.small)
+                                        .fontWeight(.semibold)
+                                        .foregroundStyle(.tertiary)
+                                }
                             }
                         }
-                    default:
-                        Label("Unknown", systemImage: "bell")
-                            .foregroundStyle(.secondary)
+                    }
+
+                    Section("Data") {
+                        Button("Delete All Data", role: .destructive) {
+                            showingDeleteAllConfirm = true
+                        }
                     }
                 }
-
-                platformSection
-
-                Section {
-                    SecureField("Enter API Key", text: $claudeAPIKey)
-                        .textContentType(.password)
-                        .autocorrectionDisabled()
-                } header: {
-                    Text("Smart Features")
-                } footer: {
-                    Text("Enter your Anthropic API key to enable AI-powered suggestions and weekly digests. Your key is stored only on your device.")
-                }
-
-                Section("Data") {
-                    Button("Delete All Data", role: .destructive) {
-                        showingDeleteAllConfirm = true
-                    }
-                }
-                }
-                .disabled(showingDeleteAllConfirm || editingSlot != nil)
+                .disabled(showingDeleteAllConfirm)
 
                 if showingDeleteAllConfirm {
                     Color.black.opacity(0.35)
@@ -195,54 +184,21 @@ struct SettingsView: View {
                     .padding(.horizontal, 32)
                     .transition(.scale.combined(with: .opacity))
                 }
-
-                if let slot = editingSlot {
-                    Color.black.opacity(0.35)
-                        .ignoresSafeArea()
-                        .transition(.opacity)
-                        .onTapGesture { editingSlot = nil }
-
-                    VStack(spacing: 16) {
-                        Text(slotTitle(slot))
-                            .font(.title3.weight(.semibold))
-
-                        DatePicker("", selection: $pickerDate, displayedComponents: .hourAndMinute)
-                            .datePickerStyle(.wheel)
-                            .labelsHidden()
-
-                        HStack(spacing: 12) {
-                            Button("Cancel") {
-                                editingSlot = nil
-                            }
-                            .frame(maxWidth: .infinity)
-                            .buttonStyle(.bordered)
-
-                            Button("Done") {
-                                let hour = Calendar.current.component(.hour, from: pickerDate)
-                                switch slot {
-                                case .air: airReminderHour = hour
-                                case .weekly: weeklySummaryHour = hour
-                                }
-                                rescheduleNotifications()
-                                editingSlot = nil
-                            }
-                            .frame(maxWidth: .infinity)
-                            .buttonStyle(.borderedProminent)
-                        }
-                    }
-                    .padding(20)
-                    .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
-                    .shadow(color: .black.opacity(0.25), radius: 20, y: 10)
-                    .padding(.horizontal, 32)
-                    .transition(.scale.combined(with: .opacity))
-                }
             }
             .navigationTitle("Settings")
             .navigationBarTitleDisplayMode(.large)
-            .task {
-                notificationStatus = await NotificationService.shared.authorizationStatus()
+            .sheet(isPresented: $showingNotifications) {
+                NotificationSettingsSheet()
             }
-            // Success banner overlaid at the top
+            .sheet(isPresented: $showingPlatforms) {
+                StreamingServicesSheet()
+            }
+            .sheet(isPresented: $showingPaywall) {
+                AppPaywallView().environmentObject(purchaseService)
+            }
+            .sheet(isPresented: $showingCustomerCenter) {
+                AppCustomerCenterView()
+            }
             .overlay(alignment: .top) {
                 if showingDeletedBanner {
                     HStack(spacing: 10) {
@@ -261,115 +217,12 @@ struct SettingsView: View {
             }
             .animation(.spring(duration: 0.35), value: showingDeletedBanner)
             .animation(.spring(duration: 0.3), value: showingDeleteAllConfirm)
-            .animation(.spring(duration: 0.3), value: editingSlot == nil)
-        }
-    }
-
-    // MARK: - Platform section
-
-    private var platformSection: some View {
-        Section {
-            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
-                ForEach(platformsForPicker) { platform in
-                    let selected = preferredPlatforms.contains(platform.rawValue)
-                    Button {
-                        togglePlatform(platform.rawValue)
-                    } label: {
-                        HStack(spacing: 6) {
-                            Text(platform.rawValue)
-                                .font(.subheadline)
-                                .fontWeight(.medium)
-                                .lineLimit(1)
-                                .foregroundStyle(selected ? .white : platform.badgeColor)
-                            if selected {
-                                Image(systemName: "checkmark")
-                                    .font(.caption)
-                                    .fontWeight(.bold)
-                                    .foregroundStyle(.white)
-                            }
-                        }
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 10)
-                        .frame(maxWidth: .infinity)
-                        .background(selected ? platform.badgeColor : platform.badgeColor.opacity(0.12))
-                        .clipShape(RoundedRectangle(cornerRadius: 10))
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-            .listRowBackground(Color.clear)
-            .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
-        } header: {
-            Text("Preferred Streaming Services")
-        } footer: {
-            Text("Shows and movies not available on your services are flagged in the library.")
-        }
-    }
-
-    // MARK: - Row helper
-
-    private func timeRow(label: String, hour: Int, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            HStack {
-                Text(label)
-                    .foregroundStyle(.primary)
-                Spacer()
-                Text(formattedHour(hour))
-                    .foregroundStyle(.secondary)
-                Image(systemName: "chevron.right")
-                    .imageScale(.small)
-                    .fontWeight(.semibold)
-                    .foregroundStyle(.tertiary)
-            }
-        }
-    }
-
-    // MARK: - Helpers
-
-    private func slotTitle(_ slot: TimeSlot) -> String {
-        switch slot {
-        case .air: return "New Episode Reminder"
-        case .weekly: return "Weekly Summary"
-        }
-    }
-
-    private func dateFromHour(_ hour: Int) -> Date {
-        var components = DateComponents()
-        components.hour = hour
-        components.minute = 0
-        return Calendar.current.date(from: components) ?? Date()
-    }
-
-    private func formattedHour(_ hour: Int) -> String {
-        var components = DateComponents()
-        components.hour = hour
-        components.minute = 0
-        let date = Calendar.current.date(from: components) ?? Date()
-        return date.formatted(.dateTime.hour().minute())
-    }
-
-    private func rescheduleNotifications() {
-        Task {
-            await NotificationService.shared.scheduleNotifications(for: shows)
-        }
-    }
-
-    private func rescheduleTeamNotifications() {
-        Task {
-            for team in teams {
-                await NotificationService.shared.scheduleNotifications(for: team)
-            }
         }
     }
 
     private func deleteAllData() {
         do {
             UNUserNotificationCenter.current().removeAllPendingNotificationRequests()
-
-            // Delete Shows only — Episodes are cascade-deleted automatically
-            // via the @Relationship(deleteRule: .cascade) on Show.episodes.
-            // Trying to batch-delete Episodes first triggers a SwiftData OTO
-            // constraint violation on the Episode.show inverse relationship.
             try modelContext.delete(model: Show.self)
             try modelContext.save()
 
@@ -379,10 +232,86 @@ struct SettingsView: View {
                 showingDeletedBanner = false
             }
         } catch {
-            // Settings delete errors are non-fatal; banner won't show but data may be partially cleared
+            // non-fatal
         }
     }
+}
 
+// MARK: - Streaming Services Sheet
+
+struct StreamingServicesSheet: View {
+    @Environment(\.dismiss) private var dismiss
+
+    @AppStorage("preferredPlatforms") private var preferredPlatformsRaw: String = ""
+
+    private var preferredPlatforms: Set<String> {
+        Set(preferredPlatformsRaw.split(separator: ",").map(String.init))
+    }
+
+    private var platformsForPicker: [StreamingPlatform] {
+        StreamingPlatform.allCases.filter { $0 != .other }
+    }
+
+    private func togglePlatform(_ platform: String) {
+        var platforms = preferredPlatforms
+        if platforms.contains(platform) { platforms.remove(platform) } else { platforms.insert(platform) }
+        preferredPlatformsRaw = platforms.sorted().joined(separator: ",")
+    }
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
+                    ForEach(platformsForPicker) { platform in
+                        let selected = preferredPlatforms.contains(platform.rawValue)
+                        Button {
+                            togglePlatform(platform.rawValue)
+                        } label: {
+                            HStack(spacing: 6) {
+                                Text(platform.rawValue)
+                                    .font(.subheadline)
+                                    .fontWeight(.medium)
+                                    .lineLimit(1)
+                                    .foregroundStyle(selected ? .white : platform.badgeColor)
+                                if selected {
+                                    Image(systemName: "checkmark")
+                                        .font(.caption)
+                                        .fontWeight(.bold)
+                                        .foregroundStyle(.white)
+                                }
+                            }
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 12)
+                            .frame(maxWidth: .infinity)
+                            .background(selected ? platform.badgeColor : platform.badgeColor.opacity(0.12))
+                            .clipShape(RoundedRectangle(cornerRadius: 10))
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(.horizontal, 16)
+                .padding(.top, 12)
+
+                Text("Shows and movies not available on your services are flagged in the library.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 16)
+                    .padding(.top, 16)
+                    .padding(.bottom, 24)
+            }
+            .navigationTitle("Streaming Services")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Done") { dismiss() }
+                        .fontWeight(.semibold)
+                }
+            }
+        }
+        .presentationDetents([.medium, .large])
+        .presentationDragIndicator(.visible)
+    }
 }
 
 #Preview {

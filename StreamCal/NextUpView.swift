@@ -18,11 +18,15 @@ struct NextUpView: View {
     @Query(sort: \AnimeShow.titleRomaji)
     private var animeShows: [AnimeShow]
 
-    @AppStorage("claudeAPIKey") private var claudeAPIKey: String = ""
+    @Query(sort: \SportTeam.name)
+    private var teams: [SportTeam]
+
+    @EnvironmentObject private var purchaseService: PurchaseService
 
     @State private var aiSuggestion: String? = nil
     @State private var isLoadingAI = false
     @State private var showingAISheet = false
+    @State private var showingPaywall = false
 
     private var activeShows: [Show] { shows.filter { !$0.isArchived } }
 
@@ -115,25 +119,9 @@ struct NextUpView: View {
         }
     }
 
-    // MARK: - Catch-up shows
-
-    private var catchUpShows: [(show: Show, daysUntil: Int, backlogCount: Int)] {
-        let cal = Calendar.current
-        let today = cal.startOfDay(for: .now)
-        return shows.filter { !$0.isArchived }.compactMap { show -> (Show, Int, Int)? in
-            let backlog = show.backlogEpisodes.count
-            guard backlog > 0 else { return nil }
-            guard let upcoming = show.nextUpcomingEpisode,
-                  upcoming.airDate != .distantFuture else { return nil }
-            let days = cal.dateComponents([.day], from: today, to: cal.startOfDay(for: upcoming.airDate)).day ?? Int.max
-            guard days <= 14 else { return nil }
-            return (show, days, backlog)
-        }.sorted { $0.1 < $1.1 }
-    }
-
     private var hasUpcomingContent: Bool {
         switch contentType {
-        case .shows:  return !airingToday.isEmpty || !thisWeek.isEmpty || !comingSoon.isEmpty || !dateTBA.isEmpty || !catchUpShows.isEmpty || !animeAiringToday.isEmpty || !animeThisWeek.isEmpty || !animeComingSoon.isEmpty
+        case .shows:  return !airingToday.isEmpty || !thisWeek.isEmpty || !comingSoon.isEmpty || !dateTBA.isEmpty || !animeAiringToday.isEmpty || !animeThisWeek.isEmpty || !animeComingSoon.isEmpty
         case .movies: return !moviesInTheaters.isEmpty || !moviesComingSoon.isEmpty || !moviesStreamingSoon.isEmpty
         case .sports: return !gamesToday.isEmpty || !gamesThisWeek.isEmpty || !gamesUpcoming.isEmpty
         }
@@ -175,23 +163,67 @@ struct NextUpView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbarBackground(Color(.systemGroupedBackground), for: .navigationBar)
             .sheet(isPresented: $showingAISheet) { aiSheet }
+            .sheet(isPresented: $showingPaywall) { AppPaywallView().environmentObject(purchaseService) }
         }
     }
 
     // MARK: - No Upcoming
 
+    private var libraryIsEmpty: Bool {
+        switch contentType {
+        case .shows:  return shows.filter({ !$0.isArchived }).isEmpty && animeShows.filter({ !$0.isArchived }).isEmpty
+        case .movies: return movies.filter({ !$0.isArchived }).isEmpty
+        case .sports: return teams.isEmpty
+        }
+    }
+
     private var noUpcomingView: some View {
         Group {
-            switch contentType {
-            case .shows:
-                ContentUnavailableView("Nothing Upcoming", systemImage: "play.circle",
-                    description: Text("Add shows or anime to your library to see upcoming episodes."))
-            case .movies:
-                ContentUnavailableView("No Movies Upcoming", systemImage: "film",
-                    description: Text("Add movies to track their release dates."))
-            case .sports:
-                ContentUnavailableView("No Games Upcoming", systemImage: "sportscourt",
-                    description: Text("Follow teams to see their upcoming games."))
+            if libraryIsEmpty {
+                switch contentType {
+                case .shows:
+                    ContentUnavailableView {
+                        Label("Your Library is Empty", systemImage: "rectangle.stack.badge.plus")
+                    } description: {
+                        Text("Add TV shows or anime to see upcoming episodes here.")
+                    } actions: {
+                        Text("Go to **Library** to get started")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                    }
+                case .movies:
+                    ContentUnavailableView {
+                        Label("No Movies Added", systemImage: "film.stack")
+                    } description: {
+                        Text("Track upcoming releases, theatrical dates, and streaming debuts.")
+                    } actions: {
+                        Text("Go to **Library → Movies** to add your first movie")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                    }
+                case .sports:
+                    ContentUnavailableView {
+                        Label("No Teams Followed", systemImage: "sportscourt.fill")
+                    } description: {
+                        Text("Follow your favorite teams to see their upcoming games.")
+                    } actions: {
+                        Text("Go to **Library → Sports** to follow a team")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            } else {
+                switch contentType {
+                case .shows:
+                    ContentUnavailableView("All Caught Up", systemImage: "checkmark.circle",
+                        description: Text("No upcoming episodes in the next few weeks. Check back soon."))
+                case .movies:
+                    ContentUnavailableView("No Upcoming Releases", systemImage: "film",
+                        description: Text("None of your tracked movies have upcoming release dates right now."))
+                case .sports:
+                    ContentUnavailableView("No Upcoming Games", systemImage: "sportscourt",
+                        description: Text("No scheduled games in the near future. Pull to refresh."))
+                }
             }
         }
         .refreshable { await refreshAll() }
@@ -204,46 +236,47 @@ struct NextUpView: View {
             switch contentType {
             case .shows:
                 // AI "What to watch tonight" card
-                if !claudeAPIKey.isEmpty {
-                    Section {
-                        Button {
+                Section {
+                    Button {
+                        if purchaseService.isPro {
                             showingAISheet = true
                             if aiSuggestion == nil { loadAISuggestion() }
-                        } label: {
-                            HStack(spacing: 12) {
-                                Image(systemName: "sparkles")
-                                    .font(.title2)
-                                    .foregroundStyle(.purple)
-                                VStack(alignment: .leading, spacing: 2) {
+                        } else {
+                            showingPaywall = true
+                        }
+                    } label: {
+                        HStack(spacing: 12) {
+                            Image(systemName: "sparkles")
+                                .font(.title2)
+                                .foregroundStyle(DS.Color.ai)
+                            VStack(alignment: .leading, spacing: 2) {
+                                HStack(spacing: 6) {
                                     Text("What should I watch tonight?")
                                         .font(.headline)
                                         .foregroundStyle(.primary)
-                                    Text("Tap for a personalized suggestion")
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
+                                    if !purchaseService.isPro {
+                                        Text("PRO")
+                                            .font(.caption2)
+                                            .fontWeight(.bold)
+                                            .foregroundStyle(.white)
+                                            .padding(.horizontal, 5)
+                                            .padding(.vertical, 2)
+                                            .background(Color.accentColor)
+                                            .clipShape(Capsule())
+                                    }
                                 }
-                                Spacer()
-                                Image(systemName: "chevron.right")
-                                    .imageScale(.small)
-                                    .foregroundStyle(.tertiary)
+                                Text("Tap for a personalized suggestion")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
                             }
-                            .padding(.vertical, 4)
+                            Spacer()
+                            Image(systemName: "chevron.right")
+                                .imageScale(.small)
+                                .foregroundStyle(.tertiary)
                         }
-                        .buttonStyle(.plain)
+                        .padding(.vertical, 4)
                     }
-                }
-
-                // Catch-up card
-                if !catchUpShows.isEmpty {
-                    Section {
-                        ForEach(catchUpShows, id: \.show.persistentModelID) { item in
-                            NavigationLink(destination: ShowDetailView(show: item.show)) {
-                                CatchUpRow(show: item.show, daysUntil: item.daysUntil, backlogCount: item.backlogCount)
-                            }
-                        }
-                    } header: {
-                        NextUpSectionHeader(title: "Catch Up Before It's Too Late", icon: "bolt.fill", color: .orange)
-                    }
+                    .buttonStyle(.plain)
                 }
 
                 if !airingToday.isEmpty || !animeAiringToday.isEmpty {
@@ -768,55 +801,6 @@ struct UpcomingGameRow: View {
     }
 }
 
-// MARK: - Catch Up Row
-
-struct CatchUpRow: View {
-    let show: Show
-    let daysUntil: Int
-    let backlogCount: Int
-
-    private var posterURL: URL? {
-        guard let s = show.posterURL else { return nil }
-        return URL(string: s)
-    }
-
-    var body: some View {
-        HStack(spacing: 14) {
-            CachedAsyncImage(url: posterURL) { phase in
-                switch phase {
-                case .success(let image):
-                    image.resizable().aspectRatio(contentMode: .fill)
-                case .failure, .empty:
-                    Rectangle()
-                        .foregroundStyle(DS.Color.imagePlaceholder)
-                        .overlay { Image(systemName: "tv").foregroundStyle(.tertiary) }
-                @unknown default:
-                    Rectangle().foregroundStyle(DS.Color.imagePlaceholder)
-                }
-            }
-            .frame(width: 54, height: 81)
-            .clipShape(RoundedRectangle(cornerRadius: DS.Radius.md))
-
-            VStack(alignment: .leading, spacing: 5) {
-                Text(show.title)
-                    .font(.headline)
-                    .lineLimit(1)
-                Text("Season \(show.episodes.max(by: { $0.seasonNumber < $1.seasonNumber })?.seasonNumber ?? 1) returns in \(daysUntil) day\(daysUntil == 1 ? "" : "s")")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(2)
-                Spacer(minLength: 0)
-                Label("\(backlogCount) episode\(backlogCount == 1 ? "" : "s") behind", systemImage: "bolt.fill")
-                    .font(.caption)
-                    .fontWeight(.semibold)
-                    .foregroundStyle(.orange)
-            }
-            .padding(.vertical, 14)
-        }
-        .padding(.horizontal, 14)
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-}
 
 // MARK: - Anime Episode Card
 

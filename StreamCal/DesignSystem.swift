@@ -11,6 +11,16 @@ enum DS {
         static let movieTheaterRed = SwiftUI.Color(red: 0.95, green: 0.35, blue: 0.35)
         /// `Color(.systemGray5)` — image placeholder backgrounds
         static let imagePlaceholder = SwiftUI.Color(.systemGray5)
+
+        // Content-type semantic colors
+        /// Soft purple — TV shows and anime
+        static let shows  = SwiftUI.Color(red: 0.65, green: 0.55, blue: 0.98)
+        /// Soft red — movies (alias of movieTheaterRed family)
+        static let movies = SwiftUI.Color(red: 0.97, green: 0.44, blue: 0.44)
+        /// Soft green — sports games and teams
+        static let sports = SwiftUI.Color(red: 0.20, green: 0.83, blue: 0.60)
+        /// Indigo — AI / Claude features
+        static let ai     = SwiftUI.Color.indigo
     }
 
     // MARK: Corner Radius

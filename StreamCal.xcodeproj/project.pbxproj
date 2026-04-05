@@ -18,11 +18,18 @@
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
+/* Begin PBXBuildFile section */
+		AA000001AAAAAAAAAAAAAA01 /* RevenueCat in Frameworks */ = {isa = PBXBuildFile; productRef = AA000002AAAAAAAAAAAAAA01 /* RevenueCat */; };
+		AA000003AAAAAAAAAAAAAA01 /* RevenueCatUI in Frameworks */ = {isa = PBXBuildFile; productRef = AA000004AAAAAAAAAAAAAA01 /* RevenueCatUI */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXFrameworksBuildPhase section */
 		5751CD8E2F4F77AB007ECCBA /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				AA000001AAAAAAAAAAAAAA01 /* RevenueCat in Frameworks */,
+				AA000003AAAAAAAAAAAAAA01 /* RevenueCatUI in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -65,6 +72,8 @@
 			);
 			name = StreamCal;
 			packageProductDependencies = (
+				AA000002AAAAAAAAAAAAAA01 /* RevenueCat */,
+				AA000004AAAAAAAAAAAAAA01 /* RevenueCatUI */,
 			);
 			productName = StreamCal;
 			productReference = 5751CD912F4F77AB007ECCBA /* StreamCal.app */;
@@ -94,6 +103,9 @@
 			);
 			mainGroup = 5751CD882F4F77AB007ECCBA;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				575A765E2F81DC7C0004985F /* XCRemoteSwiftPackageReference "purchases-ios" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 5751CD922F4F77AB007ECCBA /* Products */;
 			projectDirPath = "";
@@ -332,6 +344,30 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		AA000002AAAAAAAAAAAAAA01 /* RevenueCat */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 575A765E2F81DC7C0004985F /* XCRemoteSwiftPackageReference "purchases-ios" */;
+			productName = RevenueCat;
+		};
+		AA000004AAAAAAAAAAAAAA01 /* RevenueCatUI */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 575A765E2F81DC7C0004985F /* XCRemoteSwiftPackageReference "purchases-ios" */;
+			productName = RevenueCatUI;
+		};
+/* End XCSwiftPackageProductDependency section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		575A765E2F81DC7C0004985F /* XCRemoteSwiftPackageReference "purchases-ios" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/RevenueCat/purchases-ios";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 5.67.1;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
 	};
 	rootObject = 5751CD892F4F77AB007ECCBA /* Project object */;
 }

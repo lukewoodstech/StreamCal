@@ -3,6 +3,7 @@ import SwiftData
 
 struct MoviesView: View {
 
+    var searchText: String = ""
     var onAdd: (() -> Void)? = nil
 
     @Environment(\.modelContext) private var modelContext
@@ -11,6 +12,14 @@ struct MoviesView: View {
     private var movies: [Movie]
 
     @State private var toast: ToastMessage? = nil
+
+    private var isSearching: Bool { !searchText.isEmpty }
+
+    private var filteredMovies: [Movie] {
+        let q = searchText.lowercased()
+        return movies.filter { !$0.isArchived && $0.title.lowercased().contains(q) }
+                     .sorted { $0.title < $1.title }
+    }
 
     private var inTheaters: [Movie] {
         movies.filter { !$0.isArchived && $0.releaseStatus == .released }
@@ -39,7 +48,20 @@ struct MoviesView: View {
 
     var body: some View {
         Group {
-            if movies.filter({ !$0.isArchived }).isEmpty {
+            if isSearching {
+                if filteredMovies.isEmpty {
+                    ContentUnavailableView.search(text: searchText)
+                } else {
+                    List {
+                        ForEach(filteredMovies) { movie in
+                            NavigationLink(destination: MovieDetailView(movie: movie, onAction: { toast = $0 })) {
+                                MovieRowView(movie: movie)
+                            }
+                        }
+                    }
+                    .listStyle(.insetGrouped)
+                }
+            } else if movies.filter({ !$0.isArchived }).isEmpty {
                 ContentUnavailableView {
                     Label("No Movies Yet", systemImage: "film.stack")
                 } description: {

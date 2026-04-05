@@ -20,6 +20,10 @@ struct CalendarView: View {
     @State private var displayedMonth: Date = Calendar.current.startOfMonth(for: .now)
     @State private var selectedDate: Date = Calendar.current.startOfDay(for: .now)
 
+    @EnvironmentObject private var purchaseService: PurchaseService
+    @State private var dailyBriefText: String? = nil
+    @State private var dailyBriefLoading: Bool = false
+
     private var cal: Calendar { Calendar.current }
     private var today: Date { cal.startOfDay(for: .now) }
 
@@ -53,178 +57,132 @@ struct CalendarView: View {
 
     var body: some View {
         NavigationStack {
-            List {
-                Section {
-                    if selectedDate < today {
-                        // Past day state
-                        VStack(spacing: 12) {
-                            Image(systemName: "clock.arrow.circlepath")
-                                .font(.system(size: 40))
-                                .foregroundStyle(.tertiary)
-                            Text("This Day Has Passed")
-                                .font(.headline)
-                                .foregroundStyle(.secondary)
-                            Text("Future episodes, movies, and games will appear here once scheduled.")
-                                .font(.subheadline)
-                                .foregroundStyle(.tertiary)
-                                .multilineTextAlignment(.center)
-                                .padding(.horizontal)
-                            Button("Go to Today") {
-                                withAnimation(.easeInOut(duration: 0.2)) {
-                                    displayedMonth = cal.startOfMonth(for: today)
-                                    selectedDate = today
-                                }
-                            }
-                            .buttonStyle(.bordered)
-                            .padding(.top, 4)
+            VStack(spacing: 0) {
+                // Fixed month grid — does not scroll
+                MonthGridView(
+                    displayedMonth: $displayedMonth,
+                    selectedDate: $selectedDate,
+                    episodesByDate: episodesByDate,
+                    moviesByDate: daysByDate.mapValues { $0.movies },
+                    gamesByDate: daysByDate.mapValues { $0.games },
+                    animeByDate: daysByDate.mapValues { $0.animeEpisodes },
+                    today: today,
+                    maxMonth: latestContentMonth,
+                    onMonthChanged: { newMonth in
+                        selectedDate = nearestDate(in: newMonth, from: episodesByDate) ?? cal.startOfMonth(for: newMonth)
+                    },
+                    onGoToToday: {
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            displayedMonth = cal.startOfMonth(for: today)
+                            selectedDate = today
                         }
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 48)
-                        .listRowBackground(Color.clear)
-                        .listRowSeparator(.hidden)
-                    } else if !selectedHasContent {
-                        VStack(spacing: 10) {
-                            Image(systemName: "calendar.badge.clock")
-                                .font(.system(size: 40))
-                                .foregroundStyle(.tertiary)
-                            Text("Nothing Scheduled")
-                                .font(.headline)
-                                .foregroundStyle(.secondary)
-                            Text("Add shows to your library to see upcoming episodes.")
-                                .font(.subheadline)
-                                .foregroundStyle(.tertiary)
-                                .multilineTextAlignment(.center)
-                                .padding(.horizontal)
-                        }
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 48)
-                        .listRowBackground(Color.clear)
-                        .listRowSeparator(.hidden)
-                    } else {
-                        // Date label
-                        dayPaneHeader
-                            .padding(.horizontal, 4)
-                            .padding(.vertical, 2)
-                            .listRowBackground(Color(.systemGroupedBackground))
-                            .listRowSeparator(.hidden)
+                    }
+                )
+                .padding(.horizontal, 16)
+                .padding(.top, 4)
+                .padding(.bottom, 8)
+                .background(Color(.systemGroupedBackground))
 
-                        // TV Shows card
-                        if !selectedEpisodes.isEmpty {
-                            cardLabel("TV Shows")
-                            VStack(spacing: 0) {
-                                ForEach(Array(selectedEpisodes.enumerated()), id: \.element.persistentModelID) { index, episode in
-                                    CalendarEpisodeRow(episode: episode)
-                                        .padding(.horizontal, 16)
-                                    if index < selectedEpisodes.count - 1 {
-                                        Divider().padding(.leading, 74)
-                                    }
-                                }
-                            }
-                            .background(Color(.systemBackground))
-                            .clipShape(RoundedRectangle(cornerRadius: DS.Radius.md, style: .continuous))
-                            .listRowBackground(Color.clear)
-                            .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
-                            .listRowSeparator(.hidden)
-                        }
+                Divider()
 
-                        // Movies card
-                        if !selectedMovies.isEmpty {
-                            cardLabel("Movies")
-                            VStack(spacing: 0) {
-                                ForEach(Array(selectedMovies.enumerated()), id: \.element.persistentModelID) { index, movie in
-                                    NavigationLink(destination: MovieDetailView(movie: movie)) {
-                                        CalendarMovieRow(movie: movie)
+                // Scrollable day content
+                ScrollView {
+                    LazyVStack(alignment: .leading, spacing: 0, pinnedViews: []) {
+                        if selectedDate < today {
+                            pastDayState
+                                .padding(.top, 40)
+                        } else if !selectedHasContent {
+                            emptyDayState
+                                .padding(.top, 40)
+                        } else {
+                            dayPaneHeader
+                                .padding(.horizontal, 20)
+                                .padding(.top, 12)
+                                .padding(.bottom, 4)
+
+                            if purchaseService.isPro && cal.isDateInToday(selectedDate) {
+                                DailyBriefCard(briefText: dailyBriefText, isLoading: dailyBriefLoading) {
+                                    Task { await loadDailyBrief(force: true) }
+                                }
+                                .padding(.horizontal, 16)
+                                .padding(.bottom, 4)
+                            }
+
+                            if !selectedEpisodes.isEmpty {
+                                dayContentCard(label: "TV Shows") {
+                                    ForEach(Array(selectedEpisodes.enumerated()), id: \.element.persistentModelID) { index, episode in
+                                        CalendarEpisodeRow(episode: episode)
                                             .padding(.horizontal, 16)
-                                    }
-                                    .buttonStyle(.plain)
-                                    if index < selectedMovies.count - 1 {
-                                        Divider().padding(.leading, 74)
+                                        if index < selectedEpisodes.count - 1 {
+                                            Divider().padding(.leading, 74)
+                                        }
                                     }
                                 }
                             }
-                            .background(Color(.systemBackground))
-                            .clipShape(RoundedRectangle(cornerRadius: DS.Radius.md, style: .continuous))
-                            .listRowBackground(Color.clear)
-                            .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
-                            .listRowSeparator(.hidden)
-                        }
 
-                        // Games card
-                        if !selectedGames.isEmpty {
-                            cardLabel("Games")
-                            VStack(spacing: 0) {
-                                ForEach(Array(selectedGames.enumerated()), id: \.element.persistentModelID) { index, game in
-                                    CalendarGameRow(game: game)
-                                        .padding(.horizontal, 16)
-                                    if index < selectedGames.count - 1 {
-                                        Divider().padding(.leading, 74)
+                            if !selectedMovies.isEmpty {
+                                dayContentCard(label: "Movies") {
+                                    ForEach(Array(selectedMovies.enumerated()), id: \.element.persistentModelID) { index, movie in
+                                        NavigationLink(destination: MovieDetailView(movie: movie)) {
+                                            CalendarMovieRow(movie: movie)
+                                                .padding(.horizontal, 16)
+                                        }
+                                        .buttonStyle(.plain)
+                                        if index < selectedMovies.count - 1 {
+                                            Divider().padding(.leading, 74)
+                                        }
                                     }
                                 }
                             }
-                            .background(Color(.systemBackground))
-                            .clipShape(RoundedRectangle(cornerRadius: DS.Radius.md, style: .continuous))
-                            .listRowBackground(Color.clear)
-                            .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
-                            .listRowSeparator(.hidden)
-                        }
 
-                        // Anime card
-                        if !selectedAnimeEpisodes.isEmpty {
-                            cardLabel("Anime")
-                            VStack(spacing: 0) {
-                                ForEach(Array(selectedAnimeEpisodes.enumerated()), id: \.element.persistentModelID) { index, ep in
-                                    CalendarAnimeRow(episode: ep)
-                                        .padding(.horizontal, 16)
-                                    if index < selectedAnimeEpisodes.count - 1 {
-                                        Divider().padding(.leading, 74)
+                            if !selectedGames.isEmpty {
+                                dayContentCard(label: "Games") {
+                                    ForEach(Array(selectedGames.enumerated()), id: \.element.persistentModelID) { index, game in
+                                        CalendarGameRow(game: game)
+                                            .padding(.horizontal, 16)
+                                        if index < selectedGames.count - 1 {
+                                            Divider().padding(.leading, 74)
+                                        }
                                     }
                                 }
                             }
-                            .background(Color(.systemBackground))
-                            .clipShape(RoundedRectangle(cornerRadius: DS.Radius.md, style: .continuous))
-                            .listRowBackground(Color.clear)
-                            .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
-                            .listRowSeparator(.hidden)
+
+                            if !selectedAnimeEpisodes.isEmpty {
+                                dayContentCard(label: "Anime") {
+                                    ForEach(Array(selectedAnimeEpisodes.enumerated()), id: \.element.persistentModelID) { index, ep in
+                                        CalendarAnimeRow(episode: ep)
+                                            .padding(.horizontal, 16)
+                                        if index < selectedAnimeEpisodes.count - 1 {
+                                            Divider().padding(.leading, 74)
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
-                } header: {
-                    VStack(spacing: 0) {
-                        MonthGridView(
-                            displayedMonth: $displayedMonth,
-                            selectedDate: $selectedDate,
-                            episodesByDate: episodesByDate,
-                            moviesByDate: daysByDate.mapValues { $0.movies },
-                            gamesByDate: daysByDate.mapValues { $0.games },
-                            animeByDate: daysByDate.mapValues { $0.animeEpisodes },
-                            today: today,
-                            maxMonth: latestContentMonth,
-                            onMonthChanged: { newMonth in
-                                selectedDate = nearestDate(in: newMonth, from: episodesByDate) ?? cal.startOfMonth(for: newMonth)
-                            },
-                            onGoToToday: {
-                                withAnimation(.easeInOut(duration: 0.2)) {
-                                    displayedMonth = cal.startOfMonth(for: today)
-                                    selectedDate = today
-                                }
-                            }
-                        )
-                        .padding(.horizontal, 16)
-                        .padding(.top, 4)
-                        .padding(.bottom, 8)
-                        Divider()
-                    }
-                    .background(Color(.systemGroupedBackground))
+                    .padding(.bottom, 20)
+                }
+                .background(Color(.systemGroupedBackground))
+                .refreshable { await refreshAll() }
+            }
+            .background(Color(.systemGroupedBackground))
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .principal) {
+                    Wordmark()
                 }
             }
-            .listStyle(.plain)
-            .scrollContentBackground(.hidden)
-            .background(Color(.systemGroupedBackground))
-            .navigationTitle("StreamCal")
-            .navigationBarTitleDisplayMode(.large)
             .toolbarBackground(Color(.systemGroupedBackground), for: .navigationBar)
-            .refreshable { await refreshAll() }
             .onAppear {
                 selectedDate = nearestDate(from: today, in: episodesByDate) ?? today
+                if purchaseService.isPro && cal.isDateInToday(selectedDate) {
+                    Task { await loadDailyBrief() }
+                }
+            }
+            .onChange(of: selectedDate) { _, newDate in
+                if purchaseService.isPro && cal.isDateInToday(newDate) {
+                    Task { await loadDailyBrief() }
+                }
             }
             .onChange(of: episodesByDate.keys.count) {
                 if !selectedHasContent {
@@ -232,6 +190,88 @@ struct CalendarView: View {
                 }
             }
         }
+    }
+
+    @ViewBuilder
+    private func dayContentCard<Content: View>(label: String, @ViewBuilder content: () -> Content) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text(label)
+                .font(.caption).fontWeight(.semibold)
+                .foregroundStyle(.secondary)
+                .textCase(.uppercase)
+                .padding(.horizontal, 20)
+                .padding(.top, 12)
+                .padding(.bottom, 4)
+            VStack(spacing: 0) {
+                content()
+            }
+            .background(Color(.systemBackground))
+            .clipShape(RoundedRectangle(cornerRadius: DS.Radius.md, style: .continuous))
+            .padding(.horizontal, 16)
+            .padding(.bottom, 4)
+        }
+    }
+
+    private var pastDayState: some View {
+        VStack(spacing: 12) {
+            Image(systemName: "clock.arrow.circlepath")
+                .font(.system(size: 40))
+                .foregroundStyle(.tertiary)
+            Text("This Day Has Passed")
+                .font(.headline)
+                .foregroundStyle(.secondary)
+            Text("Future episodes, movies, and games will appear here once scheduled.")
+                .font(.subheadline)
+                .foregroundStyle(.tertiary)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal)
+            Button("Go to Today") {
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    displayedMonth = cal.startOfMonth(for: today)
+                    selectedDate = today
+                }
+            }
+            .buttonStyle(.bordered)
+            .padding(.top, 4)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 8)
+    }
+
+    private var calendarIsEmpty: Bool {
+        allEpisodes.isEmpty && allMovies.isEmpty && allGames.isEmpty && allAnimeEpisodes.isEmpty
+    }
+
+    private var emptyDayState: some View {
+        VStack(spacing: 10) {
+            if calendarIsEmpty {
+                Image(systemName: "calendar.badge.plus")
+                    .font(.system(size: 40))
+                    .foregroundStyle(.tertiary)
+                Text("Nothing Here Yet")
+                    .font(.headline)
+                    .foregroundStyle(.secondary)
+                Text("Add shows, movies, or teams from your **Library** to fill up your calendar.")
+                    .font(.subheadline)
+                    .foregroundStyle(.tertiary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal)
+            } else {
+                Image(systemName: "calendar.badge.clock")
+                    .font(.system(size: 40))
+                    .foregroundStyle(.tertiary)
+                Text("Nothing Scheduled")
+                    .font(.headline)
+                    .foregroundStyle(.secondary)
+                Text("No episodes, releases, or games on this day.")
+                    .font(.subheadline)
+                    .foregroundStyle(.tertiary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal)
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 8)
     }
 
     /// Returns today if it has episodes, otherwise the next calendar day that does.
@@ -246,6 +286,37 @@ struct CalendarView: View {
         guard let monthEnd = cal.date(byAdding: .month, value: 1, to: monthStart) else { return nil }
         let sorted = dict.keys.filter { $0 >= monthStart && $0 < monthEnd }.sorted()
         return sorted.first
+    }
+
+    private func loadDailyBrief(force: Bool = false) async {
+        guard purchaseService.isPro else { return }
+        let todayKey = "dailyBriefDate"
+        let textKey  = "dailyBriefText"
+        let storedDate = UserDefaults.standard.string(forKey: todayKey) ?? ""
+        let todayString = Calendar.current.startOfDay(for: .now).formatted(.iso8601)
+        if !force && storedDate == todayString,
+           let cached = UserDefaults.standard.string(forKey: textKey) {
+            dailyBriefText = cached
+            return
+        }
+        dailyBriefLoading = true
+        var items: [String] = []
+        for ep in selectedEpisodes.prefix(3) {
+            items.append("\(ep.show?.title ?? "Show"): \(ep.displayTitle)")
+        }
+        for movie in selectedMovies.prefix(2) {
+            items.append("\(movie.title) (movie)")
+        }
+        for game in selectedGames.prefix(2) {
+            items.append(game.displayTitle)
+        }
+        let brief = await ClaudeService.generateDailyBrief(items: items)
+        dailyBriefLoading = false
+        dailyBriefText = brief
+        if let brief {
+            UserDefaults.standard.set(todayString, forKey: todayKey)
+            UserDefaults.standard.set(brief, forKey: textKey)
+        }
     }
 
     private func refreshAll() async {
@@ -277,24 +348,65 @@ struct CalendarView: View {
         }
     }
 
-    @ViewBuilder
-    private func cardLabel(_ title: String) -> some View {
-        Text(title)
-            .font(.caption).fontWeight(.semibold)
-            .foregroundStyle(.secondary)
-            .textCase(.uppercase)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .listRowBackground(Color.clear)
-            .listRowSeparator(.hidden)
-            .listRowInsets(EdgeInsets(top: 12, leading: 20, bottom: 2, trailing: 16))
-    }
-
     private var headerLabel: String {
         if cal.isDateInToday(selectedDate) { return "Today" }
         if cal.isDateInTomorrow(selectedDate) { return "Tomorrow" }
         return selectedDate.formatted(.dateTime.weekday(.wide).month(.abbreviated).day())
     }
 
+}
+
+// MARK: - Daily Brief Card
+
+struct DailyBriefCard: View {
+    let briefText: String?
+    let isLoading: Bool
+    let onRefresh: () -> Void
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: "sparkles")
+                .font(.callout)
+                .foregroundStyle(DS.Color.ai)
+                .padding(.top, 1)
+
+            if isLoading {
+                VStack(alignment: .leading, spacing: 6) {
+                    RoundedRectangle(cornerRadius: 4)
+                        .fill(Color(.systemGray5))
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 14)
+                    RoundedRectangle(cornerRadius: 4)
+                        .fill(Color(.systemGray5))
+                        .frame(width: 200)
+                        .frame(height: 14)
+                }
+            } else if let text = briefText {
+                Text(text)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            } else {
+                Text("Generating your daily brief…")
+                    .font(.subheadline)
+                    .foregroundStyle(.tertiary)
+            }
+
+            Spacer(minLength: 0)
+
+            if !isLoading {
+                Button(action: onRefresh) {
+                    Image(systemName: "arrow.clockwise")
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(DS.Spacing.md)
+        .background(DS.Color.ai.opacity(0.07))
+        .clipShape(RoundedRectangle(cornerRadius: DS.Radius.md))
+    }
 }
 
 // MARK: - Month Grid

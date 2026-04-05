@@ -34,18 +34,21 @@ struct OnboardingView: View {
     var body: some View {
         VStack(spacing: 0) {
             TabView(selection: $currentPage) {
+                splashPage
+                    .tag(0)
                 ForEach(Array(pages.enumerated()), id: \.offset) { index, page in
                     pageView(page)
-                        .tag(index)
+                        .tag(index + 1)
                 }
             }
             .tabViewStyle(.page(indexDisplayMode: .never))
             .animation(.easeInOut, value: currentPage)
 
             // Page indicators + button
+            let totalPages = pages.count + 1  // splash + content pages
             VStack(spacing: 24) {
                 HStack(spacing: 8) {
-                    ForEach(0..<pages.count, id: \.self) { index in
+                    ForEach(0..<totalPages, id: \.self) { index in
                         Capsule()
                             .fill(index == currentPage ? Color.primary : Color(.systemGray4))
                             .frame(width: index == currentPage ? 20 : 8, height: 8)
@@ -54,13 +57,13 @@ struct OnboardingView: View {
                 }
 
                 Button {
-                    if currentPage < pages.count - 1 {
+                    if currentPage < totalPages - 1 {
                         withAnimation { currentPage += 1 }
                     } else {
                         hasCompletedOnboarding = true
                     }
                 } label: {
-                    Text(currentPage < pages.count - 1 ? "Continue" : "Get Started")
+                    Text(currentPage < totalPages - 1 ? "Continue" : "Get Started")
                         .font(.headline)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 16)
@@ -70,7 +73,7 @@ struct OnboardingView: View {
                 }
                 .padding(.horizontal, 32)
 
-                if currentPage < pages.count - 1 {
+                if currentPage < totalPages - 1 {
                     Button("Skip") {
                         hasCompletedOnboarding = true
                     }
@@ -84,6 +87,26 @@ struct OnboardingView: View {
             .padding(.top, 16)
         }
         .background(Color(.systemBackground))
+    }
+
+    private var splashPage: some View {
+        VStack(spacing: 0) {
+            Spacer()
+            BrandMark(size: 90, showBackground: true)
+                .padding(.bottom, 36)
+            VStack(spacing: 12) {
+                Text("StreamCal")
+                    .font(.system(size: 40, weight: .bold, design: .rounded))
+                    .foregroundStyle(.primary)
+                Text("Your personal streaming calendar")
+                    .font(.body)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+            }
+            .padding(.horizontal, 40)
+            Spacer()
+            Spacer()
+        }
     }
 
     private func pageView(_ page: OnboardingPage) -> some View {

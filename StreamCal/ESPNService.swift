@@ -112,12 +112,24 @@ final class ESPNService: Sendable {
     static let shared = ESPNService()
 
     static let leagues: [ESPNLeagueConfig] = [
+        // North American Pro
         ESPNLeagueConfig(name: "NFL",              sport: "football",    league: "nfl",                      icon: "football.fill"),
         ESPNLeagueConfig(name: "NBA",              sport: "basketball",  league: "nba",                      icon: "basketball.fill"),
+        ESPNLeagueConfig(name: "WNBA",             sport: "basketball",  league: "wnba",                     icon: "basketball.fill"),
         ESPNLeagueConfig(name: "MLB",              sport: "baseball",    league: "mlb",                      icon: "baseball.fill"),
         ESPNLeagueConfig(name: "NHL",              sport: "hockey",      league: "nhl",                      icon: "hockey.puck.fill"),
+        ESPNLeagueConfig(name: "MLS",              sport: "soccer",      league: "usa.1",                    icon: "soccerball"),
+        // College
         ESPNLeagueConfig(name: "NCAA Football",    sport: "football",    league: "college-football",          icon: "football.fill"),
         ESPNLeagueConfig(name: "NCAA Basketball",  sport: "basketball",  league: "mens-college-basketball",   icon: "basketball.fill"),
+        // International Soccer
+        ESPNLeagueConfig(name: "Champions League", sport: "soccer",      league: "uefa.champions",            icon: "soccerball"),
+        ESPNLeagueConfig(name: "La Liga",          sport: "soccer",      league: "esp.1",                    icon: "soccerball"),
+        ESPNLeagueConfig(name: "Bundesliga",       sport: "soccer",      league: "ger.1",                    icon: "soccerball"),
+        ESPNLeagueConfig(name: "Serie A",          sport: "soccer",      league: "ita.1",                    icon: "soccerball"),
+        // Motorsport
+        ESPNLeagueConfig(name: "F1",               sport: "racing",      league: "f1",                       icon: "flag.checkered.2.crossed"),
+        ESPNLeagueConfig(name: "NASCAR Cup",       sport: "racing",      league: "nascar-cup",               icon: "flag.checkered.2.crossed"),
     ]
 
     private let baseURL = "https://site.api.espn.com/apis/site/v2/sports"
@@ -154,21 +166,18 @@ final class ESPNService: Sendable {
         return teams
     }
 
-    /// Search all 4 leagues concurrently and filter by name/abbreviation.
+    /// Search all leagues concurrently and filter by name/abbreviation.
     func searchTeams(query: String) async throws -> [ESPNTeam] {
         let lower = query.lowercased()
-        async let nfl = fetchTeams(for: ESPNService.leagues[0])
-        async let nba = fetchTeams(for: ESPNService.leagues[1])
-        async let mlb = fetchTeams(for: ESPNService.leagues[2])
-        async let nhl = fetchTeams(for: ESPNService.leagues[3])
-
-        let nflTeams = (try? await nfl) ?? []
-        let nbaTeams = (try? await nba) ?? []
-        let mlbTeams = (try? await mlb) ?? []
-        let nhlTeams = (try? await nhl) ?? []
-        let all = nflTeams + nbaTeams + mlbTeams + nhlTeams
-
-        return all.filter {
+        let allTeams: [ESPNTeam] = await withTaskGroup(of: [ESPNTeam].self) { group in
+            for config in ESPNService.leagues {
+                group.addTask { (try? await self.fetchTeams(for: config)) ?? [] }
+            }
+            var result: [ESPNTeam] = []
+            for await teams in group { result.append(contentsOf: teams) }
+            return result
+        }
+        return allTeams.filter {
             $0.displayName.lowercased().contains(lower) ||
             $0.abbreviation.lowercased() == lower
         }

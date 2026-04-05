@@ -3,9 +3,8 @@ import SwiftData
 
 struct LibraryView: View {
 
-    /// When false, the view is embedded in LibraryContainerView which provides the NavigationStack.
     var standalone: Bool = true
-    /// Called when the user taps "Add a Show" in the empty state (embedded mode only).
+    var searchText: String = ""
     var onAdd: (() -> Void)? = nil
 
     @Environment(\.modelContext) private var modelContext
@@ -63,8 +62,22 @@ struct LibraryView: View {
 
     var archivedAnime: [AnimeShow] { animeShows.filter { $0.isArchived } }
 
-    private var isEmpty: Bool {
-        shows.isEmpty && animeShows.isEmpty
+    private var isEmpty: Bool { shows.isEmpty && animeShows.isEmpty }
+    private var isSearching: Bool { !searchText.isEmpty }
+
+    private var filteredShows: [Show] {
+        let q = searchText.lowercased()
+        return shows.filter { $0.title.lowercased().contains(q) }
+            .sorted { $0.title < $1.title }
+    }
+
+    private var filteredAnime: [AnimeShow] {
+        let q = searchText.lowercased()
+        return animeShows.filter {
+            $0.displayTitle.lowercased().contains(q) ||
+            $0.titleRomaji.lowercased().contains(q)
+        }
+        .sorted { $0.displayTitle < $1.displayTitle }
     }
 
     var body: some View {
@@ -78,14 +91,31 @@ struct LibraryView: View {
     @ViewBuilder
     private var innerBody: some View {
         Group {
-            if isEmpty {
+            if isSearching {
+                let allResults = filteredShows.isEmpty && filteredAnime.isEmpty
+                if allResults {
+                    ContentUnavailableView.search(text: searchText)
+                } else {
+                    List {
+                        ForEach(filteredShows) { show in
+                            NavigationLink(destination: ShowDetailView(show: show)) {
+                                ShowRowView(show: show)
+                            }
+                        }
+                        ForEach(filteredAnime) { anime in
+                            animeRow(anime)
+                        }
+                    }
+                    .listStyle(.insetGrouped)
+                }
+            } else if isEmpty {
                 ContentUnavailableView {
-                    Label("No Shows Yet", systemImage: "rectangle.stack.fill")
+                    Label("Your Library is Empty", systemImage: "rectangle.stack.fill")
                 } description: {
-                    Text("Search for a show or anime to start tracking episodes.")
+                    Text("Add TV shows, movies, and anime to start tracking what's coming up.")
                 } actions: {
                     Button("Add a Show") { standalone ? (showingAddShow = true) : onAdd?() }
-                        .buttonStyle(.bordered)
+                        .buttonStyle(.borderedProminent)
                 }
             } else {
                 List {
