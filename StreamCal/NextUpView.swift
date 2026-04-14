@@ -40,46 +40,15 @@ struct NextUpView: View {
 
     // MARK: - Movie sections
 
-    private var moviesInTheaters: [Movie] {
-        movies.filter { !$0.isArchived && $0.releaseStatus == .released }
-    }
-
-    private var moviesComingSoon: [Movie] {
-        movies.filter { !$0.isArchived && $0.releaseStatus == .comingSoon && $0.theatricalReleaseDate != .distantFuture }
-    }
-
-    private var moviesStreamingSoon: [Movie] {
-        movies.filter { !$0.isArchived && $0.releaseStatus == .streaming }
-            .sorted { ($0.streamingReleaseDate ?? .distantFuture) < ($1.streamingReleaseDate ?? .distantFuture) }
-    }
+    private var moviesInTheaters: [Movie] { WatchPlanner.moviesInTheaters(from: movies) }
+    private var moviesComingSoon: [Movie] { WatchPlanner.moviesComingSoon(from: movies) }
+    private var moviesStreamingSoon: [Movie] { WatchPlanner.moviesStreamingSoon(from: movies) }
 
     // MARK: - Game sections
 
-    private var gamesToday: [SportGame] {
-        games.filter { !$0.isCompleted && Calendar.current.isDateInToday($0.gameDate) }
-    }
-
-    private var gamesThisWeek: [SportGame] {
-        let cal = Calendar.current
-        let now = Date.now
-        let weekEnd = cal.date(byAdding: .day, value: 7, to: cal.startOfDay(for: now))!
-        return games.filter {
-            !$0.isCompleted &&
-            $0.gameDate > now &&
-            !cal.isDateInToday($0.gameDate) &&
-            $0.gameDate <= weekEnd &&
-            $0.gameDate != .distantFuture
-        }
-    }
-
-    private var gamesUpcoming: [SportGame] {
-        let cal = Calendar.current
-        let now = Date.now
-        let weekEnd = cal.date(byAdding: .day, value: 7, to: cal.startOfDay(for: now))!
-        return Array(games.filter {
-            !$0.isCompleted && $0.gameDate > weekEnd && $0.gameDate != .distantFuture
-        }.prefix(20))
-    }
+    private var gamesToday: [SportGame] { WatchPlanner.gamesToday(from: games) }
+    private var gamesThisWeek: [SportGame] { WatchPlanner.gamesThisWeek(from: games) }
+    private var gamesUpcoming: [SportGame] { WatchPlanner.gamesUpcoming(from: games) }
 
     // MARK: - Anime sections
 

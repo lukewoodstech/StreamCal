@@ -168,6 +168,56 @@ final class WatchPlanner {
             }
     }
 
+    // MARK: - Movie Sections
+
+    /// Non-archived movies that have been theatrically released.
+    static func moviesInTheaters(from movies: [Movie]) -> [Movie] {
+        movies.filter { !$0.isArchived && $0.releaseStatus == .released }
+    }
+
+    /// Non-archived movies with a known upcoming theatrical release date.
+    static func moviesComingSoon(from movies: [Movie]) -> [Movie] {
+        movies.filter { !$0.isArchived && $0.releaseStatus == .comingSoon && $0.theatricalReleaseDate != .distantFuture }
+    }
+
+    /// Non-archived movies available on streaming, sorted by streaming release date ascending.
+    static func moviesStreamingSoon(from movies: [Movie]) -> [Movie] {
+        movies
+            .filter { !$0.isArchived && $0.releaseStatus == .streaming }
+            .sorted { ($0.streamingReleaseDate ?? .distantFuture) < ($1.streamingReleaseDate ?? .distantFuture) }
+    }
+
+    // MARK: - Game Sections
+
+    /// Incomplete games scheduled for today.
+    static func gamesToday(from games: [SportGame]) -> [SportGame] {
+        games.filter { !$0.isCompleted && Calendar.current.isDateInToday($0.gameDate) }
+    }
+
+    /// Incomplete games after today through the next 7 days (exclusive of today).
+    static func gamesThisWeek(from games: [SportGame]) -> [SportGame] {
+        let cal = Calendar.current
+        let now = Date.now
+        let weekEnd = cal.date(byAdding: .day, value: 7, to: cal.startOfDay(for: now))!
+        return games.filter {
+            !$0.isCompleted &&
+            $0.gameDate > now &&
+            !cal.isDateInToday($0.gameDate) &&
+            $0.gameDate <= weekEnd &&
+            $0.gameDate != .distantFuture
+        }
+    }
+
+    /// Incomplete games beyond the next 7 days, capped at 20 results.
+    static func gamesUpcoming(from games: [SportGame]) -> [SportGame] {
+        let cal = Calendar.current
+        let now = Date.now
+        let weekEnd = cal.date(byAdding: .day, value: 7, to: cal.startOfDay(for: now))!
+        return Array(games.filter {
+            !$0.isCompleted && $0.gameDate > weekEnd && $0.gameDate != .distantFuture
+        }.prefix(20))
+    }
+
     // MARK: - Calendar Sections
 
     struct CalendarDay {
