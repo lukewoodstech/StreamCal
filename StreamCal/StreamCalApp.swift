@@ -32,6 +32,7 @@ struct StreamCalApp: App {
             Task { @MainActor in
                 await RefreshService.shared.refreshAllShows(modelContext: container.mainContext)
                 await RefreshService.shared.refreshAllAnime(modelContext: container.mainContext)
+                await TraktService.shared.syncHistory(modelContext: container.mainContext)
             }
         }
     }

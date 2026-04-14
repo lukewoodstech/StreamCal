@@ -171,10 +171,22 @@ struct TeamDetailView: View {
                     }
                 }
 
-                if let venue = game.venue, !venue.isEmpty {
-                    Text(venue)
-                        .font(.caption)
-                        .foregroundStyle(.tertiary)
+                HStack(spacing: 8) {
+                    if let venue = game.venue, !venue.isEmpty {
+                        Text(venue)
+                            .font(.caption)
+                            .foregroundStyle(.tertiary)
+                    }
+                    if let network = game.broadcastNetwork {
+                        Text(network)
+                            .font(.caption)
+                            .fontWeight(.semibold)
+                            .foregroundStyle(.secondary)
+                            .padding(.horizontal, 7)
+                            .padding(.vertical, 2)
+                            .background(Color(.tertiarySystemFill))
+                            .clipShape(Capsule())
+                    }
                 }
 
                 if game.gameDate != .distantFuture {

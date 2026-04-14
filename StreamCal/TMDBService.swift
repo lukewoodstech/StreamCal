@@ -36,9 +36,17 @@ struct TMDBSeasonListResponse: Decodable, Sendable {
     let seasons: [TMDBSeasonSummary]
     let networks: [TMDBNetwork]?
     let status: String?
+    let posterPath: String?
+    let name: String?
+    let overview: String?
+    let genres: [TMDBMovieGenre]?
+    let firstAirDate: String?
 
     enum CodingKeys: String, CodingKey {
-        case seasons, networks, status
+        case seasons, networks, status, overview, genres
+        case posterPath = "poster_path"
+        case name
+        case firstAirDate = "first_air_date"
     }
 }
 

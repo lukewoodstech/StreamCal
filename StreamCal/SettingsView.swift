@@ -8,6 +8,9 @@ struct SettingsView: View {
 
     @Query private var shows: [Show]
     @Query private var episodes: [Episode]
+    @Query private var movies: [Movie]
+    @Query private var animeShows: [AnimeShow]
+    @Query private var teams: [SportTeam]
 
     @EnvironmentObject private var purchaseService: PurchaseService
 
@@ -50,7 +53,9 @@ struct SettingsView: View {
 
                     Section("About") {
                         LabeledContent("Shows", value: "\(shows.count)")
-                        LabeledContent("Shows", value: "\(shows.count)")
+                        LabeledContent("Movies", value: "\(movies.count)")
+                        LabeledContent("Anime", value: "\(animeShows.count)")
+                        LabeledContent("Sports Teams", value: "\(teams.count)")
                         LabeledContent("Episodes", value: "\(episodes.count)")
                         Link(destination: URL(string: "https://lukewoodstech.github.io/streamcal-privacy")!) {
                             HStack {
@@ -96,6 +101,10 @@ struct SettingsView: View {
                                     .foregroundStyle(.tertiary)
                             }
                         }
+                    }
+
+                    Section("Connected Accounts") {
+                        TraktConnectionRow()
                     }
 
                     Section("Smart Features") {
@@ -156,7 +165,7 @@ struct SettingsView: View {
                             .font(.title3.weight(.semibold))
                             .multilineTextAlignment(.center)
 
-                        Text("This will permanently delete all \(shows.count) shows and \(episodes.count) episodes. This cannot be undone.")
+                        Text("This will permanently delete all shows, movies, anime, and sports data. This cannot be undone.")
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
                             .multilineTextAlignment(.center)
@@ -224,6 +233,10 @@ struct SettingsView: View {
         do {
             UNUserNotificationCenter.current().removeAllPendingNotificationRequests()
             try modelContext.delete(model: Show.self)
+            try modelContext.delete(model: Movie.self)
+            try modelContext.delete(model: AnimeShow.self)
+            try modelContext.delete(model: SportTeam.self)
+            try modelContext.delete(model: SportGame.self)
             try modelContext.save()
 
             showingDeletedBanner = true
@@ -311,6 +324,67 @@ struct StreamingServicesSheet: View {
         }
         .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)
+    }
+}
+
+// MARK: - Trakt Connection Row
+
+struct TraktConnectionRow: View {
+    @StateObject private var trakt = TraktService.shared
+    @Environment(\.modelContext) private var modelContext
+
+    @State private var showingDisconnectConfirm = false
+
+    var body: some View {
+        Group {
+            if trakt.isConnected {
+                HStack {
+                    Label("Trakt", systemImage: "clock.arrow.trianglehead.counterclockwise.rotate.90")
+                        .foregroundStyle(.primary)
+                    Spacer()
+                    if trakt.isSyncing {
+                        ProgressView()
+                            .scaleEffect(0.8)
+                    } else if trakt.lastSyncedCount > 0 {
+                        Text("\(trakt.lastSyncedCount) synced")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                    } else {
+                        Text("Connected")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                Button("Disconnect Trakt", role: .destructive) {
+                    showingDisconnectConfirm = true
+                }
+                .confirmationDialog("Disconnect Trakt?", isPresented: $showingDisconnectConfirm, titleVisibility: .visible) {
+                    Button("Disconnect", role: .destructive) { trakt.disconnect() }
+                    Button("Cancel", role: .cancel) {}
+                } message: {
+                    Text("Watch history synced from Trakt will remain, but future syncs will stop.")
+                }
+            } else {
+                Button {
+                    trakt.connect()
+                } label: {
+                    HStack {
+                        Label("Connect Trakt", systemImage: "clock.arrow.trianglehead.counterclockwise.rotate.90")
+                            .foregroundStyle(.primary)
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                            .imageScale(.small)
+                            .fontWeight(.semibold)
+                            .foregroundStyle(.tertiary)
+                    }
+                }
+            }
+        }
+        // Trigger an immediate sync the moment the user successfully connects
+        .onChange(of: trakt.isConnected) { _, connected in
+            guard connected else { return }
+            Task { await trakt.syncHistory(modelContext: modelContext) }
+        }
     }
 }
 

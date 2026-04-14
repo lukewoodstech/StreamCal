@@ -31,6 +31,8 @@ final class Movie {
     var watchProviderNames: [String] = []
     var notificationsEnabled: Bool = true
     var isArchived: Bool = false
+    /// User has marked this movie as already seen — used only for AI context, never shown in UI.
+    var isSeen: Bool = false
     var createdAt: Date
     var updatedAt: Date
 

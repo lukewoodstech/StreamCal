@@ -65,6 +65,12 @@ struct ESPNCompetition: Decodable {
     let competitors: [ESPNCompetitor]
     let venue: ESPNVenue?
     let status: ESPNStatus?
+    let broadcasts: [ESPNBroadcast]?
+}
+
+struct ESPNBroadcast: Decodable {
+    // market can be a String or an object depending on ESPN endpoint — skip it
+    let names: [String]?
 }
 
 struct ESPNCompetitor: Decodable {
@@ -186,13 +192,18 @@ final class ESPNService: Sendable {
     // MARK: - Schedule
 
     /// Fetch full team schedule. ESPN ID stored in team.sportsDBID, path in team.leagueID.
+    /// Fetches regular season (seasontype=2) + playoffs (seasontype=3) and merges them.
     func fetchSchedule(espnTeamID: String, sport: String, leaguePath: String) async throws -> [ESPNEvent] {
-        guard let url = URL(string: "\(baseURL)/\(sport)/\(leaguePath)/teams/\(espnTeamID)/schedule") else {
-            throw URLError(.badURL)
+        let base = "\(baseURL)/\(sport)/\(leaguePath)/teams/\(espnTeamID)/schedule"
+        var all: [ESPNEvent] = []
+        for seasontype in [2, 3] {
+            guard let url = URL(string: "\(base)?seasontype=\(seasontype)") else { continue }
+            if let (data, _) = try? await session.data(from: url),
+               let response = try? JSONDecoder().decode(ESPNScheduleResponse.self, from: data) {
+                all += response.events ?? []
+            }
         }
-        let (data, _) = try await session.data(from: url)
-        let response = try JSONDecoder().decode(ESPNScheduleResponse.self, from: data)
-        return response.events ?? []
+        return all
     }
 }
 

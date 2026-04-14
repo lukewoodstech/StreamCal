@@ -21,8 +21,7 @@ struct CalendarView: View {
     @State private var selectedDate: Date = Calendar.current.startOfDay(for: .now)
 
     @EnvironmentObject private var purchaseService: PurchaseService
-    @State private var dailyBriefText: String? = nil
-    @State private var dailyBriefLoading: Bool = false
+    @State private var showingAskStreamCal: Bool = false
 
     private var cal: Calendar { Calendar.current }
     private var today: Date { cal.startOfDay(for: .now) }
@@ -100,14 +99,6 @@ struct CalendarView: View {
                                 .padding(.top, 12)
                                 .padding(.bottom, 4)
 
-                            if purchaseService.isPro && cal.isDateInToday(selectedDate) {
-                                DailyBriefCard(briefText: dailyBriefText, isLoading: dailyBriefLoading) {
-                                    Task { await loadDailyBrief(force: true) }
-                                }
-                                .padding(.horizontal, 16)
-                                .padding(.bottom, 4)
-                            }
-
                             if !selectedEpisodes.isEmpty {
                                 dayContentCard(label: "TV Shows") {
                                     ForEach(Array(selectedEpisodes.enumerated()), id: \.element.persistentModelID) { index, episode in
@@ -171,18 +162,20 @@ struct CalendarView: View {
                 ToolbarItem(placement: .principal) {
                     Wordmark()
                 }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button { showingAskStreamCal = true } label: {
+                        Image(systemName: "sparkles")
+                            .symbolRenderingMode(.hierarchical)
+                            .foregroundStyle(DS.Color.ai)
+                    }
+                }
             }
             .toolbarBackground(Color(.systemGroupedBackground), for: .navigationBar)
+            .sheet(isPresented: $showingAskStreamCal) {
+                AskStreamCalView().environmentObject(purchaseService)
+            }
             .onAppear {
                 selectedDate = nearestDate(from: today, in: episodesByDate) ?? today
-                if purchaseService.isPro && cal.isDateInToday(selectedDate) {
-                    Task { await loadDailyBrief() }
-                }
-            }
-            .onChange(of: selectedDate) { _, newDate in
-                if purchaseService.isPro && cal.isDateInToday(newDate) {
-                    Task { await loadDailyBrief() }
-                }
             }
             .onChange(of: episodesByDate.keys.count) {
                 if !selectedHasContent {
@@ -288,37 +281,6 @@ struct CalendarView: View {
         return sorted.first
     }
 
-    private func loadDailyBrief(force: Bool = false) async {
-        guard purchaseService.isPro else { return }
-        let todayKey = "dailyBriefDate"
-        let textKey  = "dailyBriefText"
-        let storedDate = UserDefaults.standard.string(forKey: todayKey) ?? ""
-        let todayString = Calendar.current.startOfDay(for: .now).formatted(.iso8601)
-        if !force && storedDate == todayString,
-           let cached = UserDefaults.standard.string(forKey: textKey) {
-            dailyBriefText = cached
-            return
-        }
-        dailyBriefLoading = true
-        var items: [String] = []
-        for ep in selectedEpisodes.prefix(3) {
-            items.append("\(ep.show?.title ?? "Show"): \(ep.displayTitle)")
-        }
-        for movie in selectedMovies.prefix(2) {
-            items.append("\(movie.title) (movie)")
-        }
-        for game in selectedGames.prefix(2) {
-            items.append(game.displayTitle)
-        }
-        let brief = await ClaudeService.generateDailyBrief(items: items)
-        dailyBriefLoading = false
-        dailyBriefText = brief
-        if let brief {
-            UserDefaults.standard.set(todayString, forKey: todayKey)
-            UserDefaults.standard.set(brief, forKey: textKey)
-        }
-    }
-
     private func refreshAll() async {
         await withTaskGroup(of: Void.self) { group in
             group.addTask { await RefreshService.shared.refreshAllShows(modelContext: modelContext) }
@@ -354,59 +316,6 @@ struct CalendarView: View {
         return selectedDate.formatted(.dateTime.weekday(.wide).month(.abbreviated).day())
     }
 
-}
-
-// MARK: - Daily Brief Card
-
-struct DailyBriefCard: View {
-    let briefText: String?
-    let isLoading: Bool
-    let onRefresh: () -> Void
-
-    var body: some View {
-        HStack(alignment: .top, spacing: 12) {
-            Image(systemName: "sparkles")
-                .font(.callout)
-                .foregroundStyle(DS.Color.ai)
-                .padding(.top, 1)
-
-            if isLoading {
-                VStack(alignment: .leading, spacing: 6) {
-                    RoundedRectangle(cornerRadius: 4)
-                        .fill(Color(.systemGray5))
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 14)
-                    RoundedRectangle(cornerRadius: 4)
-                        .fill(Color(.systemGray5))
-                        .frame(width: 200)
-                        .frame(height: 14)
-                }
-            } else if let text = briefText {
-                Text(text)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            } else {
-                Text("Generating your daily brief…")
-                    .font(.subheadline)
-                    .foregroundStyle(.tertiary)
-            }
-
-            Spacer(minLength: 0)
-
-            if !isLoading {
-                Button(action: onRefresh) {
-                    Image(systemName: "arrow.clockwise")
-                        .font(.caption)
-                        .foregroundStyle(.tertiary)
-                }
-                .buttonStyle(.plain)
-            }
-        }
-        .padding(DS.Spacing.md)
-        .background(DS.Color.ai.opacity(0.07))
-        .clipShape(RoundedRectangle(cornerRadius: DS.Radius.md))
-    }
 }
 
 // MARK: - Month Grid

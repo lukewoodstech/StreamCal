@@ -61,6 +61,7 @@ final class SportGame {
     var season: String?             // "2025-2026"
     var result: String?             // nil until completed, e.g. "3–1"
     var isCompleted: Bool = false
+    var broadcastNetwork: String?   // e.g. "ESPN", "TNT", "NBC" — ESPN teams only
     var createdAt: Date
 
     var team: SportTeam?

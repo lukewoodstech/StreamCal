@@ -340,7 +340,7 @@ struct AddTeamSheet: View {
             if isCompleted,
                let homeScore = comp?.competitors.first(where: { $0.homeAway == "home" })?.score?.value,
                let awayScore = comp?.competitors.first(where: { $0.homeAway == "away" })?.score?.value {
-                result = "\(Int(awayScore))–\(Int(homeScore))"
+                result = "\(Int(homeScore))–\(Int(awayScore))"
             }
 
             let game = SportGame(

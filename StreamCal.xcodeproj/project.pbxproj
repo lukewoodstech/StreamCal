@@ -6,22 +6,35 @@
 	objectVersion = 77;
 	objects = {
 
-/* Begin PBXFileReference section */
-		5751CD912F4F77AB007ECCBA /* StreamCal.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = StreamCal.app; sourceTree = BUILT_PRODUCTS_DIR; };
-/* End PBXFileReference section */
-
-/* Begin PBXFileSystemSynchronizedRootGroup section */
-		5751CD932F4F77AB007ECCBA /* StreamCal */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			path = StreamCal;
-			sourceTree = "<group>";
-		};
-/* End PBXFileSystemSynchronizedRootGroup section */
-
 /* Begin PBXBuildFile section */
 		AA000001AAAAAAAAAAAAAA01 /* RevenueCat in Frameworks */ = {isa = PBXBuildFile; productRef = AA000002AAAAAAAAAAAAAA01 /* RevenueCat */; };
 		AA000003AAAAAAAAAAAAAA01 /* RevenueCatUI in Frameworks */ = {isa = PBXBuildFile; productRef = AA000004AAAAAAAAAAAAAA01 /* RevenueCatUI */; };
 /* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		5751CD912F4F77AB007ECCBA /* StreamCal.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = StreamCal.app; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		572D2A7F2F858946001042FD /* Exceptions for "StreamCal" folder in "StreamCal" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 5751CD902F4F77AB007ECCBA /* StreamCal */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
+/* Begin PBXFileSystemSynchronizedRootGroup section */
+		5751CD932F4F77AB007ECCBA /* StreamCal */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				572D2A7F2F858946001042FD /* Exceptions for "StreamCal" folder in "StreamCal" target */,
+			);
+			path = StreamCal;
+			sourceTree = "<group>";
+		};
+/* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
 		5751CD8E2F4F77AB007ECCBA /* Frameworks */ = {
@@ -269,6 +282,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = StreamCal/Info.plist;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -300,6 +314,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = StreamCal/Info.plist;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -345,6 +360,17 @@
 		};
 /* End XCConfigurationList section */
 
+/* Begin XCRemoteSwiftPackageReference section */
+		575A765E2F81DC7C0004985F /* XCRemoteSwiftPackageReference "purchases-ios" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/RevenueCat/purchases-ios";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 5.67.1;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
 /* Begin XCSwiftPackageProductDependency section */
 		AA000002AAAAAAAAAAAAAA01 /* RevenueCat */ = {
 			isa = XCSwiftPackageProductDependency;
@@ -357,17 +383,6 @@
 			productName = RevenueCatUI;
 		};
 /* End XCSwiftPackageProductDependency section */
-
-/* Begin XCRemoteSwiftPackageReference section */
-		575A765E2F81DC7C0004985F /* XCRemoteSwiftPackageReference "purchases-ios" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/RevenueCat/purchases-ios";
-			requirement = {
-				kind = upToNextMajorVersion;
-				minimumVersion = 5.67.1;
-			};
-		};
-/* End XCRemoteSwiftPackageReference section */
 	};
 	rootObject = 5751CD892F4F77AB007ECCBA /* Project object */;
 }

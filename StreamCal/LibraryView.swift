@@ -141,6 +141,12 @@ struct LibraryView: View {
                                         actionToast = .archived(title)
                                     } label: { Label("Archive", systemImage: "archivebox") }
                                     .tint(.orange)
+                                    Button {
+                                        show.isSeen.toggle()
+                                    } label: {
+                                        Label(show.isSeen ? "Not Seen" : "Seen It", systemImage: show.isSeen ? "eye.slash" : "eye")
+                                    }
+                                    .tint(.teal)
                                 }
                             }
                             ForEach(airingAnime) { anime in
@@ -180,6 +186,12 @@ struct LibraryView: View {
                                         actionToast = .archived(title)
                                     } label: { Label("Archive", systemImage: "archivebox") }
                                     .tint(.orange)
+                                    Button {
+                                        show.isSeen.toggle()
+                                    } label: {
+                                        Label(show.isSeen ? "Not Seen" : "Seen It", systemImage: show.isSeen ? "eye.slash" : "eye")
+                                    }
+                                    .tint(.teal)
                                 }
                             }
                             ForEach(onHiatusAnime) { anime in
@@ -275,6 +287,14 @@ struct LibraryView: View {
                           systemImage: anime.isArchived ? "tray.and.arrow.up" : "archivebox")
                 }
                 .tint(anime.isArchived ? .blue : .orange)
+                if !anime.isArchived {
+                    Button {
+                        anime.isSeen.toggle()
+                    } label: {
+                        Label(anime.isSeen ? "Not Seen" : "Seen It", systemImage: anime.isSeen ? "eye.slash" : "eye")
+                    }
+                    .tint(.teal)
+                }
             }
     }
 }

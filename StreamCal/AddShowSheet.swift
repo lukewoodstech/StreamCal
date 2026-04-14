@@ -134,48 +134,7 @@ struct AddShowSheet: View {
                         .padding(.vertical, 20)
                 } else if contentSource == .tv, !tvSuggestions.isEmpty {
                     Section("Trending This Week") {
-                        ForEach(tvSuggestions) { show in
-                            let inLibrary = libraryTMDBIDs.contains(show.id)
-                            if inLibrary, let existing = libraryShowsByTMDBID[show.id] {
-                                NavigationLink(destination: ShowDetailView(show: existing)) {
-                                    SearchResultRow(show: show, alreadyAdded: true)
-                                }
-                            } else {
-                                Button {
-                                    Task { await importShow(show) }
-                                } label: {
-                                    SearchResultRow(show: show, alreadyAdded: false)
-                                }
-                                .buttonStyle(.plain)
-                            }
-                        }
-                    }
-                } else if contentSource == .anime, !animeSuggestions.isEmpty {
-                    Section("Trending This Week") {
-                        ForEach(animeSuggestions) { result in
-                            let inLibrary = libraryAnilistIDs.contains(result.id)
-                            Button {
-                                guard !inLibrary else { return }
-                                Task { await importAnime(result) }
-                            } label: {
-                                AnimeSearchResultRow(result: result, isInLibrary: inLibrary)
-                            }
-                            .buttonStyle(.plain)
-                        }
-                    }
-                }
-            } else if contentSource == .tv {
-                // TV search results
-                if tvResults.isEmpty && !isSearching {
-                    ContentUnavailableView.search(text: searchText)
-                } else {
-                    ForEach(tvResults) { show in
-                        let inLibrary = libraryTMDBIDs.contains(show.id)
-                        if inLibrary, let existing = libraryShowsByTMDBID[show.id] {
-                            NavigationLink(destination: ShowDetailView(show: existing)) {
-                                SearchResultRow(show: show, alreadyAdded: true)
-                            }
-                        } else {
+                        ForEach(tvSuggestions.filter { !libraryTMDBIDs.contains($0.id) }) { show in
                             Button {
                                 Task { await importShow(show) }
                             } label: {
@@ -184,19 +143,44 @@ struct AddShowSheet: View {
                             .buttonStyle(.plain)
                         }
                     }
+                } else if contentSource == .anime, !animeSuggestions.isEmpty {
+                    Section("Trending This Week") {
+                        ForEach(animeSuggestions.filter { !libraryAnilistIDs.contains($0.id) }) { result in
+                            Button {
+                                Task { await importAnime(result) }
+                            } label: {
+                                AnimeSearchResultRow(result: result, isInLibrary: false)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                }
+            } else if contentSource == .tv {
+                // TV search results
+                let filteredTV = tvResults.filter { !libraryTMDBIDs.contains($0.id) }
+                if filteredTV.isEmpty && !isSearching {
+                    ContentUnavailableView.search(text: searchText)
+                } else {
+                    ForEach(filteredTV) { show in
+                        Button {
+                            Task { await importShow(show) }
+                        } label: {
+                            SearchResultRow(show: show, alreadyAdded: false)
+                        }
+                        .buttonStyle(.plain)
+                    }
                 }
             } else {
                 // Anime search results
-                if animeResults.isEmpty && !isSearching {
+                let filteredAnime = animeResults.filter { !libraryAnilistIDs.contains($0.id) }
+                if filteredAnime.isEmpty && !isSearching {
                     ContentUnavailableView.search(text: searchText)
                 } else {
-                    ForEach(animeResults) { result in
-                        let inLibrary = libraryAnilistIDs.contains(result.id)
+                    ForEach(filteredAnime) { result in
                         Button {
-                            guard !inLibrary else { return }
                             Task { await importAnime(result) }
                         } label: {
-                            AnimeSearchResultRow(result: result, isInLibrary: inLibrary)
+                            AnimeSearchResultRow(result: result, isInLibrary: false)
                         }
                         .buttonStyle(.plain)
                     }

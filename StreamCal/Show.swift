@@ -68,6 +68,45 @@ enum StreamingPlatform: String, CaseIterable, Codable, Hashable, Identifiable {
         }
     }
 
+    var cardBackgroundColor: Color {
+        self == .appleTV ? .black : (self == .fx || self == .abc || self == .other ? Color(.systemGray3) : badgeColor)
+    }
+
+    var abbreviatedName: String {
+        self == .amazonPrime ? "Prime" : rawValue
+    }
+
+    var sfSymbol: String {
+        switch self {
+        case .netflix:       return "play.rectangle.fill"
+        case .hulu:          return "play.tv.fill"
+        case .disneyPlus:    return "sparkles"
+        case .max:           return "film.stack"
+        case .appleTV:       return "apple.logo"
+        case .amazonPrime:   return "shippingbox.fill"
+        case .peacock:       return "bird.fill"
+        case .paramountPlus: return "mountain.2.fill"
+        case .starz:         return "star.fill"
+        case .mgmPlus:       return "theatermasks.fill"
+        case .amcPlus:       return "popcorn.fill"
+        case .fx:            return "tv.fill"
+        case .crunchyroll:   return "tornado"
+        case .discoveryPlus: return "globe.americas.fill"
+        case .espnPlus:      return "sportscourt.fill"
+        case .britbox:       return "flag.fill"
+        case .shudder:       return "moon.fill"
+        case .fubo:          return "antenna.radiowaves.left.and.right"
+        case .tubi:          return "rectangle.on.rectangle"
+        case .plutoTV:       return "tv.badge.wifi"
+        case .nbc:           return "antenna.radiowaves.left.and.right.slash"
+        case .abc:           return "play.circle.fill"
+        case .cbs:           return "eye.fill"
+        case .fox:           return "bolt.fill"
+        case .pbs:           return "book.fill"
+        case .other:         return "ellipsis.circle"
+        }
+    }
+
     /// Fuzzy-match a TMDB watch provider name (e.g. "Amazon Prime Video") to a StreamingPlatform case.
     static func match(providerName: String) -> StreamingPlatform? {
         let name = providerName.lowercased()
@@ -144,6 +183,9 @@ final class Show: Identifiable {
 
     /// When false, all notifications for this show are suppressed.
     var notificationsEnabled: Bool = true
+
+    /// User has marked this show as already seen — used only for AI context, never shown in UI.
+    var isSeen: Bool = false
 
     /// All platforms this show is available on (populated from TMDB networks).
     /// Empty for shows added before multi-platform support — fall back to `platform`.
@@ -241,6 +283,11 @@ final class Show: Identifiable {
     /// True if all episodes have been watched and there's nothing upcoming.
     var isFullyCaughtUp: Bool {
         !episodes.isEmpty && episodes.allSatisfy { $0.isWatched } && nextUpcomingEpisode == nil
+    }
+
+    var posterImageURL: URL? {
+        guard let s = posterURL else { return nil }
+        return URL(string: s)
     }
 
     var sortedEpisodes: [Episode] {

@@ -65,7 +65,9 @@ final class RefreshService {
 
         for team in teams {
             await refreshTeam(team, modelContext: modelContext)
-            try? await Task.sleep(for: .milliseconds(350)) // rate-limit free tier
+            if team.dataSource != "espn" {
+                try? await Task.sleep(for: .milliseconds(350)) // rate-limit TheSportsDB free tier
+            }
         }
 
         try? modelContext.save()
@@ -136,13 +138,17 @@ final class RefreshService {
             if isCompleted,
                let homeScore = comp?.competitors.first(where: { $0.homeAway == "home" })?.score?.value,
                let awayScore = comp?.competitors.first(where: { $0.homeAway == "away" })?.score?.value {
-                result = "\(Int(awayScore))–\(Int(homeScore))"
+                result = "\(Int(homeScore))–\(Int(awayScore))"
             }
+
+            // Pick the first broadcast network name (e.g. "ESPN", "TNT", "NBC")
+            let broadcastNetwork = comp?.broadcasts?.first?.names?.first
 
             if let existing = existingMap[event.id] {
                 existing.result = result
                 existing.isCompleted = isCompleted
                 if let date = event.parsedDate { existing.gameDate = date }
+                if let network = broadcastNetwork { existing.broadcastNetwork = network }
             } else {
                 let game = SportGame(
                     sportsDBEventID: event.id,
@@ -154,6 +160,7 @@ final class RefreshService {
                     result: result,
                     isCompleted: isCompleted
                 )
+                game.broadcastNetwork = broadcastNetwork
                 game.team = team
                 modelContext.insert(game)
             }

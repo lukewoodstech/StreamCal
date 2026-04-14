@@ -27,6 +27,7 @@ struct NextUpView: View {
     @State private var isLoadingAI = false
     @State private var showingAISheet = false
     @State private var showingPaywall = false
+    @State private var showingAskStreamCal = false
 
     private var activeShows: [Show] { shows.filter { !$0.isArchived } }
 
@@ -40,15 +41,15 @@ struct NextUpView: View {
     // MARK: - Movie sections
 
     private var moviesInTheaters: [Movie] {
-        movies.filter { !$0.isArchived && !$0.isWatched && $0.releaseStatus == .released }
+        movies.filter { !$0.isArchived && $0.releaseStatus == .released }
     }
 
     private var moviesComingSoon: [Movie] {
-        movies.filter { !$0.isArchived && !$0.isWatched && $0.releaseStatus == .comingSoon && $0.theatricalReleaseDate != .distantFuture }
+        movies.filter { !$0.isArchived && $0.releaseStatus == .comingSoon && $0.theatricalReleaseDate != .distantFuture }
     }
 
     private var moviesStreamingSoon: [Movie] {
-        movies.filter { !$0.isArchived && !$0.isWatched && $0.releaseStatus == .streaming }
+        movies.filter { !$0.isArchived && $0.releaseStatus == .streaming }
             .sorted { ($0.streamingReleaseDate ?? .distantFuture) < ($1.streamingReleaseDate ?? .distantFuture) }
     }
 
@@ -84,7 +85,7 @@ struct NextUpView: View {
 
     private var animeAiringToday: [(show: AnimeShow, episode: AnimeEpisode)] {
         animeShows.filter { !$0.isArchived }.compactMap { show -> (AnimeShow, AnimeEpisode)? in
-            let ep = show.episodes.filter { !$0.isWatched && Calendar.current.isDateInToday($0.airDate) }
+            let ep = show.episodes.filter { Calendar.current.isDateInToday($0.airDate) }
                 .sorted { $0.episodeNumber < $1.episodeNumber }.first
             guard let ep else { return nil }
             return (show, ep)
@@ -97,7 +98,7 @@ struct NextUpView: View {
         let weekEnd = cal.date(byAdding: .day, value: 7, to: cal.startOfDay(for: .now)) ?? .now
         return animeShows.filter { !$0.isArchived }.flatMap { show in
             show.episodes.filter {
-                !$0.isWatched && $0.airDate != .distantFuture &&
+                $0.airDate != .distantFuture &&
                 $0.airDate >= tomorrow && $0.airDate < weekEnd
             }.map { (show: show, episode: $0) }
         }.sorted { lhs, rhs in
@@ -111,7 +112,7 @@ struct NextUpView: View {
         let beyond = cal.date(byAdding: .day, value: 7, to: cal.startOfDay(for: .now)) ?? .now
         return animeShows.filter { !$0.isArchived }.flatMap { show in
             show.episodes.filter {
-                !$0.isWatched && $0.airDate != .distantFuture && $0.airDate >= beyond
+                $0.airDate != .distantFuture && $0.airDate >= beyond
             }.map { (show: show, episode: $0) }
         }.sorted { lhs, rhs in
             if lhs.episode.airDate != rhs.episode.airDate { return lhs.episode.airDate < rhs.episode.airDate }
@@ -161,9 +162,21 @@ struct NextUpView: View {
             }
             .navigationTitle("")
             .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button { showingAskStreamCal = true } label: {
+                        Image(systemName: "sparkles")
+                            .symbolRenderingMode(.hierarchical)
+                            .foregroundStyle(DS.Color.ai)
+                    }
+                }
+            }
             .toolbarBackground(Color(.systemGroupedBackground), for: .navigationBar)
             .sheet(isPresented: $showingAISheet) { aiSheet }
             .sheet(isPresented: $showingPaywall) { AppPaywallView().environmentObject(purchaseService) }
+            .sheet(isPresented: $showingAskStreamCal) {
+                AskStreamCalView().environmentObject(purchaseService)
+            }
         }
     }
 
@@ -283,7 +296,6 @@ struct NextUpView: View {
                     Section {
                         ForEach(airingToday, id: \.episode.persistentModelID) { item in
                             EpisodeCard(show: item.show, episode: item.episode)
-                                .swipeActions(edge: .leading) { watchedButton(item.episode, item.show) }
                         }
                         ForEach(animeAiringToday, id: \.episode.persistentModelID) { item in
                             AnimeEpisodeCard(show: item.show, episode: item.episode)
@@ -296,7 +308,6 @@ struct NextUpView: View {
                     Section {
                         ForEach(thisWeek, id: \.episode.persistentModelID) { item in
                             EpisodeCard(show: item.show, episode: item.episode)
-                                .swipeActions(edge: .leading) { watchedButton(item.episode, item.show) }
                         }
                         ForEach(animeThisWeek, id: \.episode.persistentModelID) { item in
                             AnimeEpisodeCard(show: item.show, episode: item.episode)
@@ -309,7 +320,6 @@ struct NextUpView: View {
                     Section {
                         ForEach(comingSoon, id: \.episode.persistentModelID) { item in
                             EpisodeCard(show: item.show, episode: item.episode)
-                                .swipeActions(edge: .leading) { watchedButton(item.episode, item.show) }
                         }
                         ForEach(animeComingSoon, id: \.episode.persistentModelID) { item in
                             AnimeEpisodeCard(show: item.show, episode: item.episode)
@@ -322,7 +332,6 @@ struct NextUpView: View {
                     Section {
                         ForEach(dateTBA, id: \.episode.persistentModelID) { item in
                             EpisodeCard(show: item.show, episode: item.episode)
-                                .swipeActions(edge: .leading) { watchedButton(item.episode, item.show) }
                         }
                     } header: {
                         NextUpSectionHeader(title: "Date TBA", icon: "calendar.badge.clock", color: .secondary)
@@ -415,19 +424,27 @@ struct NextUpView: View {
                         ProgressView("Thinking...")
                             .padding(.top, 40)
                     } else if let suggestion = aiSuggestion {
-                        VStack(alignment: .leading, spacing: 12) {
-                            HStack(spacing: 8) {
-                                Image(systemName: "sparkles")
-                                    .foregroundStyle(.purple)
-                                Text("Tonight's Pick")
-                                    .font(.headline)
+                        VStack(alignment: .leading, spacing: 16) {
+                            VStack(alignment: .leading, spacing: 12) {
+                                HStack(spacing: 8) {
+                                    Image(systemName: "sparkles")
+                                        .foregroundStyle(DS.Color.ai)
+                                    Text("Tonight's Pick")
+                                        .font(.headline)
+                                }
+                                Text(suggestion)
+                                    .font(.body)
+                                    .multilineTextAlignment(.leading)
                             }
-                            Text(suggestion)
-                                .font(.body)
-                                .multilineTextAlignment(.leading)
+                            .padding()
+                            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
+
+                            let matches = LibraryMatches.find(in: suggestion, shows: shows, movies: movies, teams: teams)
+                            if !matches.isEmpty {
+                                RecommendedItemsRow(matches: matches)
+                                    .padding(.horizontal, 4)
+                            }
                         }
-                        .padding()
-                        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
                         .padding(.horizontal)
                         .padding(.top, 20)
 
@@ -477,17 +494,6 @@ struct NextUpView: View {
     }
 
     // MARK: - Helpers
-
-    @ViewBuilder
-    private func watchedButton(_ episode: Episode, _ show: Show) -> some View {
-        Button {
-            episode.isWatched = true
-            Task { await NotificationService.shared.scheduleNotifications(for: show) }
-        } label: {
-            Label("Watched", systemImage: "checkmark")
-        }
-        .tint(.green)
-    }
 
     private func refreshAll() async {
         await withTaskGroup(of: Void.self) { group in
@@ -881,17 +887,7 @@ struct EpisodeContextMenuItems: View {
     let show: Show
 
     var body: some View {
-        Group {
-            Button {
-                episode.isWatched.toggle()
-                Task { await NotificationService.shared.scheduleNotifications(for: show) }
-            } label: {
-                Label(
-                    episode.isWatched ? "Mark Unwatched" : "Mark Watched",
-                    systemImage: episode.isWatched ? "eye.slash" : "checkmark.circle"
-                )
-            }
-        }
+        EmptyView()
     }
 }
 

@@ -154,34 +154,6 @@ struct MovieDetailView: View {
                 }
             }
 
-            Divider()
-
-            if movie.isWatched {
-                Button {
-                    movie.isWatched = false
-                    movie.watchedAt = nil
-                    movie.updatedAt = .now
-                    onAction?(.unwatched(movie.title))
-                } label: {
-                    Label("Mark as Unwatched", systemImage: "arrow.uturn.backward.circle")
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.bordered)
-            } else {
-                Button {
-                    movie.isWatched = true
-                    movie.watchedAt = .now
-                    movie.updatedAt = .now
-                    if let tmdbID = movie.tmdbID {
-                        NotificationService.shared.cancelMovieNotification(tmdbID: tmdbID)
-                    }
-                    onAction?(.watched(movie.title))
-                } label: {
-                    Label("Mark as Watched", systemImage: "checkmark.circle.fill")
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.borderedProminent)
-            }
         }
         .padding(DS.Spacing.lg)
         .background(Color(.secondarySystemGroupedBackground))
@@ -190,31 +162,28 @@ struct MovieDetailView: View {
 
     private var statusIcon: String {
         switch movie.releaseStatus {
-        case .watched:    return "checkmark.circle.fill"
-        case .streaming:  return "play.tv.fill"
-        case .released:   return "film.fill"
-        case .comingSoon: return "calendar"
-        case .announced:  return "clock"
+        case .watched, .streaming: return "play.tv.fill"
+        case .released:            return "film.fill"
+        case .comingSoon:          return "calendar"
+        case .announced:           return "clock"
         }
     }
 
     private var statusColor: Color {
         switch movie.releaseStatus {
-        case .watched:    return .green
-        case .streaming:  return .blue
-        case .released:   return DS.Color.movieTheaterRed
-        case .comingSoon: return .orange
-        case .announced:  return .secondary
+        case .watched, .streaming: return .blue
+        case .released:            return DS.Color.movieTheaterRed
+        case .comingSoon:          return .orange
+        case .announced:           return .secondary
         }
     }
 
     private var statusLabel: String {
         switch movie.releaseStatus {
-        case .watched:    return "Watched"
-        case .streaming:  return "Streaming Now"
-        case .released:   return "In Theaters"
-        case .comingSoon: return "Coming Soon"
-        case .announced:  return "Announced"
+        case .watched, .streaming: return "Streaming Now"
+        case .released:            return "In Theaters"
+        case .comingSoon:          return "Coming Soon"
+        case .announced:           return "Announced"
         }
     }
 

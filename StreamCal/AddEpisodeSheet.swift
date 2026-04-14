@@ -11,7 +11,6 @@ struct AddEpisodeSheet: View {
     @State private var episodeNumber = 1
     @State private var title = ""
     @State private var airDate = Date.now
-    @State private var isWatched = false
 
     var body: some View {
         NavigationStack {
@@ -27,9 +26,6 @@ struct AddEpisodeSheet: View {
                         .datePickerStyle(.compact)
                 }
 
-                Section {
-                    Toggle("Already Watched", isOn: $isWatched)
-                }
             }
             .navigationTitle("Add Episode")
             .navigationBarTitleDisplayMode(.inline)
@@ -57,8 +53,7 @@ struct AddEpisodeSheet: View {
             seasonNumber: seasonNumber,
             episodeNumber: episodeNumber,
             title: title.trimmingCharacters(in: .whitespacesAndNewlines),
-            airDate: airDate,
-            isWatched: isWatched
+            airDate: airDate
         )
         episode.show = show
         modelContext.insert(episode)
@@ -81,3 +76,4 @@ private struct AddEpisodeSheetPreviewWrapper: View {
             .modelContainer(container)
     }
 }
+

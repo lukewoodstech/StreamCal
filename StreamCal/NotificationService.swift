@@ -253,7 +253,7 @@ final class NotificationService {
 
             let content = UNMutableNotificationContent()
             content.title = game.displayTitle
-            content.body = minutesBefore >= 60
+            content.body = minutesBefore % 60 == 0 && minutesBefore >= 60
                 ? "Starts in \(minutesBefore / 60) hour\(minutesBefore / 60 == 1 ? "" : "s")"
                 : "Starts in \(minutesBefore) min"
             content.sound = .default

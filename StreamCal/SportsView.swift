@@ -20,12 +20,23 @@ struct SportsView: View {
         return teams.filter { $0.name.lowercased().contains(q) || $0.league.lowercased().contains(q) }
     }
 
-    /// Sport display order and icon mapping
-    private let sportOrder = ["NFL", "NBA", "MLB", "NHL", "Soccer", "Basketball",
-                               "American Football", "Baseball", "Ice Hockey"]
+    private let sportOrder = ["Football", "Basketball", "Baseball", "Hockey", "Soccer", "Racing", "Other"]
+
+    /// Normalizes raw stored sport values (ESPN slugs, TSDB strings, league names) to a consistent display label.
+    private func normalizedSport(_ raw: String) -> String {
+        switch raw.lowercased() {
+        case "football", "nfl", "ncaa football", "american football": return "Football"
+        case "basketball", "nba", "wnba", "ncaa basketball", "mens-college-basketball": return "Basketball"
+        case "baseball", "mlb": return "Baseball"
+        case "hockey", "nhl", "ice hockey": return "Hockey"
+        case "soccer", "mls", "usa.1": return "Soccer"
+        case "racing", "motorsport", "f1", "nascar cup": return "Racing"
+        default: return raw
+        }
+    }
 
     private var teamsBySport: [(sport: String, teams: [SportTeam])] {
-        let grouped = Dictionary(grouping: teams) { $0.sport }
+        let grouped = Dictionary(grouping: teams) { normalizedSport($0.sport) }
         return grouped
             .map { (sport: $0.key, teams: $0.value.sorted { $0.name < $1.name }) }
             .sorted { lhs, rhs in
@@ -41,10 +52,33 @@ struct SportsView: View {
                 if filteredTeams.isEmpty {
                     ContentUnavailableView.search(text: searchText)
                 } else {
+                    let filteredBySport: [(sport: String, teams: [SportTeam])] = {
+                        let grouped = Dictionary(grouping: filteredTeams) { normalizedSport($0.sport) }
+                        return grouped
+                            .map { (sport: $0.key, teams: $0.value.sorted { $0.name < $1.name }) }
+                            .sorted { lhs, rhs in
+                                let li = sportOrder.firstIndex(of: lhs.sport) ?? Int.max
+                                let ri = sportOrder.firstIndex(of: rhs.sport) ?? Int.max
+                                return li == ri ? lhs.sport < rhs.sport : li < ri
+                            }
+                    }()
                     List {
-                        ForEach(filteredTeams) { team in
-                            NavigationLink(destination: TeamDetailView(team: team, onDeleted: { name in toast = .removed(name) })) {
-                                TeamRowView(team: team)
+                        ForEach(filteredBySport, id: \.sport) { group in
+                            Section(group.sport) {
+                                ForEach(group.teams) { team in
+                                    NavigationLink(destination: TeamDetailView(team: team, onDeleted: { name in toast = .removed(name) })) {
+                                        TeamRowView(team: team)
+                                    }
+                                    .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                                        Button(role: .destructive) {
+                                            let name = team.name
+                                            modelContext.delete(team)
+                                            toast = .removed(name)
+                                        } label: {
+                                            Label("Remove", systemImage: "trash")
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
@@ -249,10 +283,22 @@ struct GameRowView: View {
                 }
             }
 
-            if let round = game.round {
-                Text(round)
-                    .font(.caption2)
-                    .foregroundStyle(.tertiary)
+            HStack(spacing: 8) {
+                if let round = game.round {
+                    Text(round)
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                }
+                if let network = game.broadcastNetwork {
+                    Text(network)
+                        .font(.caption2)
+                        .fontWeight(.semibold)
+                        .foregroundStyle(.secondary)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(Color(.tertiarySystemFill))
+                        .clipShape(Capsule())
+                }
             }
         } // VStack
         } // HStack

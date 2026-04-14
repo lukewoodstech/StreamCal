@@ -16,6 +16,8 @@ final class AnimeShow {
     var genres: [String]
     var isArchived: Bool = false
     var notificationsEnabled: Bool = true
+    /// User has marked this anime as already seen — used only for AI context, never shown in UI.
+    var isSeen: Bool = false
     var createdAt: Date = Date.now
     var updatedAt: Date = Date.now
 

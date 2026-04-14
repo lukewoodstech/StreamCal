@@ -1,0 +1,1699 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>StreamCal — Portfolio Case Study</title>
+<style>
+  :root {
+    --accent: #6B5FED;
+    --accent-light: #8B7FF0;
+    --accent-dim: rgba(107,95,237,0.15);
+    --bg: #0A0A0F;
+    --surface: #13131A;
+    --surface2: #1C1C28;
+    --border: rgba(255,255,255,0.08);
+    --text: #F0F0F5;
+    --text-secondary: rgba(240,240,245,0.55);
+    --text-tertiary: rgba(240,240,245,0.3);
+    --green: #34C759;
+    --orange: #FF9F0A;
+    --red: #FF453A;
+    --blue: #0A84FF;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', sans-serif;
+    background: #000;
+    color: var(--text);
+    height: 100vh;
+    overflow: hidden;
+    user-select: none;
+  }
+
+  /* ── DECK CONTAINER ── */
+  .deck {
+    width: 100vw;
+    height: 100vh;
+    position: relative;
+  }
+
+  .slide {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    padding: 64px 80px;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.4s ease, transform 0.4s ease;
+    transform: translateY(16px);
+    background: var(--bg);
+    overflow: hidden;
+  }
+
+  .slide.active {
+    opacity: 1;
+    pointer-events: all;
+    transform: translateY(0);
+  }
+
+  .slide.exit {
+    opacity: 0;
+    transform: translateY(-16px);
+  }
+
+  /* ── PROGRESS BAR ── */
+  .progress-bar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 2px;
+    background: var(--accent);
+    transition: width 0.4s ease;
+    z-index: 100;
+  }
+
+  /* ── NAV ── */
+  .nav {
+    position: fixed;
+    bottom: 28px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    background: rgba(19,19,26,0.9);
+    backdrop-filter: blur(20px);
+    border: 1px solid var(--border);
+    border-radius: 100px;
+    padding: 10px 20px;
+    z-index: 100;
+  }
+
+  .nav button {
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    font-size: 18px;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    transition: all 0.2s;
+  }
+
+  .nav button:hover { background: var(--surface2); color: var(--text); }
+  .nav button:disabled { opacity: 0.25; cursor: default; }
+
+  .slide-counter {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    min-width: 48px;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* ── SECTION LABEL ── */
+  .section-label {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--accent-light);
+    margin-bottom: 16px;
+  }
+
+  /* ── TYPOGRAPHY ── */
+  h1 { font-size: clamp(40px, 5vw, 64px); font-weight: 700; letter-spacing: -0.03em; line-height: 1.05; }
+  h2 { font-size: clamp(28px, 3.5vw, 44px); font-weight: 700; letter-spacing: -0.025em; line-height: 1.1; }
+  h3 { font-size: clamp(18px, 2vw, 24px); font-weight: 600; letter-spacing: -0.01em; }
+  h4 { font-size: 15px; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.06em; }
+  p  { font-size: clamp(15px, 1.4vw, 18px); line-height: 1.65; color: var(--text-secondary); }
+
+  .tagline {
+    font-size: clamp(18px, 2vw, 26px);
+    font-weight: 400;
+    color: var(--text-secondary);
+    letter-spacing: -0.01em;
+    margin-top: 12px;
+  }
+
+  /* ── LAYOUT HELPERS ── */
+  .slide-inner { width: 100%; max-width: 1100px; }
+  .slide-inner.center { text-align: center; display: flex; flex-direction: column; align-items: center; }
+  .slide-inner.split { display: grid; grid-template-columns: 1fr 1fr; gap: 64px; align-items: start; }
+  .slide-inner.thirds { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 40px; align-items: start; }
+
+  /* ── CARDS ── */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 28px;
+  }
+
+  .card-sm {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px 24px;
+  }
+
+  /* ── BULLET LISTS ── */
+  ul.bullets { list-style: none; display: flex; flex-direction: column; gap: 12px; }
+  ul.bullets li {
+    font-size: clamp(14px, 1.3vw, 17px);
+    color: var(--text-secondary);
+    line-height: 1.5;
+    padding-left: 20px;
+    position: relative;
+  }
+  ul.bullets li::before {
+    content: '—';
+    position: absolute;
+    left: 0;
+    color: var(--accent);
+    font-weight: 700;
+  }
+  ul.bullets li strong { color: var(--text); font-weight: 600; }
+
+  ul.bullets.tight { gap: 8px; }
+  ul.bullets.tight li { font-size: clamp(13px, 1.1vw, 15px); }
+
+  /* ── NUMBERED LIST ── */
+  ol.numbered { list-style: none; display: flex; flex-direction: column; gap: 14px; counter-reset: item; }
+  ol.numbered li {
+    font-size: clamp(14px, 1.3vw, 17px);
+    color: var(--text-secondary);
+    line-height: 1.5;
+    display: flex;
+    gap: 16px;
+    align-items: baseline;
+    counter-increment: item;
+  }
+  ol.numbered li::before {
+    content: counter(item);
+    min-width: 24px;
+    height: 24px;
+    background: var(--accent-dim);
+    color: var(--accent-light);
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    margin-top: 1px;
+  }
+  ol.numbered li strong { color: var(--text); font-weight: 600; }
+
+  /* ── BADGES / PILLS ── */
+  .pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 5px 12px;
+    border-radius: 100px;
+    white-space: nowrap;
+  }
+  .pill-accent { background: var(--accent-dim); color: var(--accent-light); }
+  .pill-green  { background: rgba(52,199,89,0.12); color: var(--green); }
+  .pill-orange { background: rgba(255,159,10,0.12); color: var(--orange); }
+  .pill-red    { background: rgba(255,69,58,0.12);  color: var(--red); }
+  .pill-blue   { background: rgba(10,132,255,0.12); color: var(--blue); }
+
+  /* ── TABLE ── */
+  table { width: 100%; border-collapse: collapse; font-size: clamp(13px, 1.2vw, 16px); }
+  th { text-align: left; padding: 10px 16px; font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-tertiary); border-bottom: 1px solid var(--border); }
+  td { padding: 12px 16px; color: var(--text-secondary); border-bottom: 1px solid var(--border); line-height: 1.45; }
+  td:first-child { color: var(--text); font-weight: 500; }
+  tr:last-child td { border-bottom: none; }
+
+  /* ── STARS ── */
+  .stars { color: var(--orange); font-size: 14px; }
+  .stars-dim { color: var(--text-tertiary); font-size: 14px; }
+
+  /* ── SCORE CHIP ── */
+  .score {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    font-size: 14px;
+    font-weight: 700;
+  }
+  .score-high { background: rgba(52,199,89,0.15); color: var(--green); }
+  .score-mid  { background: rgba(255,159,10,0.15); color: var(--orange); }
+  .score-low  { background: rgba(255,69,58,0.12);  color: var(--red); }
+
+  /* ── DIVIDER ── */
+  hr { border: none; border-top: 1px solid var(--border); margin: 24px 0; }
+
+  /* ── ACCENT LINE ── */
+  .accent-line {
+    width: 48px;
+    height: 3px;
+    background: var(--accent);
+    border-radius: 2px;
+    margin-bottom: 24px;
+  }
+
+  /* ── APP ICON MOCK ── */
+  .app-icon {
+    width: 88px;
+    height: 88px;
+    background: linear-gradient(135deg, var(--accent) 0%, #9B6BF2 100%);
+    border-radius: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 40px;
+    flex-shrink: 0;
+    box-shadow: 0 16px 40px rgba(107,95,237,0.35);
+  }
+
+  .app-icon-sm {
+    width: 52px;
+    height: 52px;
+    background: linear-gradient(135deg, var(--accent) 0%, #9B6BF2 100%);
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 24px;
+    flex-shrink: 0;
+  }
+
+  /* ── PHONE MOCK ── */
+  .phone-mock {
+    width: 200px;
+    height: 360px;
+    background: var(--surface2);
+    border-radius: 28px;
+    border: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    gap: 8px;
+    flex-shrink: 0;
+    overflow: hidden;
+    position: relative;
+  }
+
+  .phone-mock::before {
+    content: '';
+    position: absolute;
+    top: 14px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 60px;
+    height: 6px;
+    background: rgba(255,255,255,0.1);
+    border-radius: 3px;
+  }
+
+  /* ── SCREEN MOCK ── */
+  .screen-content {
+    width: 100%;
+    padding: 32px 12px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .mock-bar {
+    height: 10px;
+    border-radius: 5px;
+    background: var(--border);
+  }
+
+  .mock-bar.accent { background: rgba(107,95,237,0.4); }
+  .mock-bar.w100 { width: 100%; }
+  .mock-bar.w80  { width: 80%; }
+  .mock-bar.w60  { width: 60%; }
+  .mock-bar.w40  { width: 40%; }
+
+  .mock-row {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .mock-avatar {
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
+    background: var(--accent-dim);
+    flex-shrink: 0;
+  }
+
+  /* ── PLATFORM BADGE ── */
+  .platform-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 4px;
+  }
+
+  .platform-chip {
+    padding: 6px 14px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    border: 1px solid var(--border);
+  }
+
+  /* ── COVER SLIDE SPECIFICS ── */
+  #slide-1 {
+    background: radial-gradient(ellipse at 60% 40%, rgba(107,95,237,0.18) 0%, transparent 60%),
+                var(--bg);
+  }
+
+  /* ── TIMELINE ── */
+  .timeline { display: flex; flex-direction: column; gap: 0; }
+  .timeline-item { display: flex; gap: 24px; position: relative; }
+  .timeline-item::before {
+    content: '';
+    position: absolute;
+    left: 15px;
+    top: 32px;
+    bottom: -8px;
+    width: 1px;
+    background: var(--border);
+  }
+  .timeline-item:last-child::before { display: none; }
+
+  .timeline-dot {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: var(--accent-dim);
+    border: 2px solid var(--accent);
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--accent-light);
+    margin-top: 4px;
+  }
+
+  .timeline-body { padding-bottom: 28px; }
+  .timeline-body h3 { font-size: 16px; margin-bottom: 6px; }
+  .timeline-body p { font-size: 14px; }
+
+  /* ── PERSON CARD ── */
+  .person-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 28px 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .person-avatar {
+    width: 52px;
+    height: 52px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--accent), #9B6BF2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 22px;
+    font-weight: 700;
+    color: white;
+  }
+
+  .person-name { font-size: 18px; font-weight: 700; margin-bottom: 2px; }
+  .person-role { font-size: 13px; color: var(--accent-light); font-weight: 600; }
+
+  /* ── FEATURE PILLAR ── */
+  .pillar {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 22px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .pillar-icon {
+    width: 40px;
+    height: 40px;
+    background: var(--accent-dim);
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+  }
+
+  .pillar h3 { font-size: 16px; }
+  .pillar p { font-size: 13px; line-height: 1.5; }
+
+  /* ── WIREFRAME MOCK ── */
+  .wireframe {
+    background: #F5F5F7;
+    border-radius: 16px;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .wf-header {
+    height: 32px;
+    background: #D1D1D6;
+    border-radius: 8px;
+  }
+
+  .wf-block {
+    height: 48px;
+    background: #E5E5EA;
+    border-radius: 8px;
+  }
+
+  .wf-block-sm {
+    height: 28px;
+    background: #E5E5EA;
+    border-radius: 6px;
+  }
+
+  .wf-row { display: flex; gap: 8px; }
+  .wf-row .wf-block { flex: 1; }
+
+  /* ── TECH CARD ── */
+  .tech-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .tech-name { font-size: 16px; font-weight: 700; }
+  .tech-desc { font-size: 13px; color: var(--text-secondary); line-height: 1.5; flex: 1; }
+
+  /* ── SATISFACTION BAR ── */
+  .sat-bar {
+    height: 4px;
+    background: var(--border);
+    border-radius: 2px;
+    overflow: hidden;
+    margin-top: 4px;
+  }
+
+  .sat-fill {
+    height: 100%;
+    border-radius: 2px;
+    background: linear-gradient(90deg, var(--accent), var(--accent-light));
+  }
+
+  .sat-label { font-size: 11px; color: var(--text-tertiary); margin-top: 4px; }
+
+  /* ── QUOTE ── */
+  .quote {
+    font-size: clamp(20px, 2.2vw, 28px);
+    font-weight: 500;
+    font-style: italic;
+    color: var(--text-secondary);
+    line-height: 1.4;
+    letter-spacing: -0.01em;
+    max-width: 700px;
+    text-align: center;
+    position: relative;
+  }
+
+  .quote::before {
+    content: '\201C';
+    font-size: 80px;
+    color: var(--accent);
+    opacity: 0.4;
+    position: absolute;
+    top: -24px;
+    left: -20px;
+    line-height: 1;
+    font-style: normal;
+  }
+
+  /* ── ARCHITECTURE DIAGRAM ── */
+  .arch-diagram {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+
+  .arch-box {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px 18px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text);
+    text-align: center;
+  }
+
+  .arch-box.highlight {
+    background: var(--accent-dim);
+    border-color: rgba(107,95,237,0.3);
+    color: var(--accent-light);
+  }
+
+  .arch-arrow {
+    color: var(--text-tertiary);
+    font-size: 18px;
+  }
+
+  /* ── KEYBOARD HINT ── */
+  .key-hint {
+    position: fixed;
+    top: 20px;
+    right: 24px;
+    font-size: 12px;
+    color: var(--text-tertiary);
+    z-index: 100;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+
+  .key-hint kbd {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 2px 6px;
+    font-size: 11px;
+    font-family: inherit;
+    color: var(--text-secondary);
+  }
+
+  /* ── RESPONSIVE SAFETY ── */
+  @media (max-width: 900px) {
+    .slide { padding: 40px 32px; }
+    .slide-inner.split { grid-template-columns: 1fr; gap: 32px; }
+    .slide-inner.thirds { grid-template-columns: 1fr 1fr; gap: 20px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="progress-bar" id="progress"></div>
+
+<div class="key-hint">
+  <kbd>←</kbd><kbd>→</kbd> to navigate
+</div>
+
+<div class="deck" id="deck">
+
+  <!-- ─────────────────────────────────────────────
+       SLIDE 1 — COVER
+  ───────────────────────────────────────────── -->
+  <div class="slide active" id="slide-1">
+    <div class="slide-inner center">
+      <div class="app-icon" style="margin-bottom: 32px;">📅</div>
+      <h1>StreamCal</h1>
+      <p class="tagline">Your entertainment, in one place.</p>
+      <hr style="width:60px; margin: 32px auto; border-color: var(--border);">
+      <p style="font-size:14px; color: var(--text-tertiary);">Portfolio Case Study &nbsp;·&nbsp; Luke Woods, Mireya, MJ</p>
+    </div>
+  </div>
+
+  <!-- ─────────────────────────────────────────────
+       SLIDE 2 — THE PROBLEM
+  ───────────────────────────────────────────── -->
+  <div class="slide" id="slide-2">
+    <div class="slide-inner">
+      <div class="section-label">Context</div>
+      <h2 style="margin-bottom: 12px;">Streaming is fragmented.<br>Keeping up with it shouldn't be.</h2>
+      <p style="margin-bottom: 36px; max-width: 600px;">The average household subscribes to 4+ streaming services. There is no single place to see what's airing tonight, what just dropped, or what you've been meaning to watch.</p>
+      <div class="platform-grid" style="margin-bottom: 40px;">
+        <div class="platform-chip">Netflix</div>
+        <div class="platform-chip">Max</div>
+        <div class="platform-chip">Hulu</div>
+        <div class="platform-chip">Disney+</div>
+        <div class="platform-chip">Apple TV+</div>
+        <div class="platform-chip">Peacock</div>
+        <div class="platform-chip">Paramount+</div>
+        <div class="platform-chip">ESPN+</div>
+      </div>
+      <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px;">
+        <div class="card-sm">
+          <p style="font-size: 13px;"><strong style="color: var(--text);">No single source of truth</strong><br>Release dates scattered across apps, Reddit threads, and mental notes.</p>
+        </div>
+        <div class="card-sm">
+          <p style="font-size: 13px;"><strong style="color: var(--text);">Existing tools miss the full picture</strong><br>Trakt covers TV. Letterboxd covers film. Nothing covers sports + anime + movies + shows.</p>
+        </div>
+        <div class="card-sm">
+          <p style="font-size: 13px;"><strong style="color: var(--text);">Discovery is buried</strong><br>Algorithmic feeds surface what platforms want you to watch, not what you actually want.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─────────────────────────────────────────────
+       SLIDE 3 — INITIAL VISION
+  ───────────────────────────────────────────── -->
+  <div class="slide" id="slide-3">
+    <div class="slide-inner split">
+      <div>
+        <div class="section-label">Evolution of Project</div>
+        <h2 style="margin-bottom: 20px;">Where it started</h2>
+        <p style="margin-bottom: 28px;">The original concept was narrow: a simple episode tracker for TV shows. Search for a show, see upcoming episodes, set a reminder.</p>
+        <ul class="bullets">
+          <li>Target user: someone actively watching 3–5 shows at once</li>
+          <li>Core loop: Search → Save → See air date</li>
+          <li>Single data source: TMDB API for episodes</li>
+          <li>No AI, no sports, no movies</li>
+          <li>Inspired by the friction of keeping up with shows across platforms</li>
+        </ul>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 16px;">
+        <div style="font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-tertiary); margin-bottom: 4px;">V1 Scope</div>
+        <div class="card-sm" style="border-left: 3px solid var(--accent);">
+          <div style="font-size: 13px; font-weight: 700; margin-bottom: 4px; color: var(--text);">📺 TV Shows only</div>
+          <p style="font-size: 13px;">Episode list, air dates, push reminders. One source: TMDB.</p>
+        </div>
+        <div class="card-sm" style="border-left: 3px solid var(--border); opacity: 0.5;">
+          <div style="font-size: 13px; font-weight: 700; margin-bottom: 4px; color: var(--text);">🎬 Movies — not yet</div>
+          <p style="font-size: 13px;">No theatrical or streaming release date tracking.</p>
+        </div>
+        <div class="card-sm" style="border-left: 3px solid var(--border); opacity: 0.5;">
+          <div style="font-size: 13px; font-weight: 700; margin-bottom: 4px; color: var(--text);">🏆 Sports — not yet</div>
+          <p style="font-size: 13px;">No team schedules, no ESPN integration.</p>
+        </div>
+        <div class="card-sm" style="border-left: 3px solid var(--border); opacity: 0.5;">
+          <div style="font-size: 13px; font-weight: 700; margin-bottom: 4px; color: var(--text);">✨ AI — not yet</div>
+          <p style="font-size: 13px;">No Claude integration, no discovery, no personalization.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─────────────────────────────────────────────
+       SLIDE 4 — HOW VISION EVOLVED
+  ───────────────────────────────────────────── -->
+  <div class="slide" id="slide-4">
+    <div class="slide-inner">
+      <div class="section-label">Evolution of Project</div>
+      <h2 style="margin-bottom: 36px;">How the scope evolved</h2>
+      <div class="timeline">
+        <div class="timeline-item">
+          <div class="timeline-dot">1</div>
+          <div class="timeline-body">
+            <h3>TV Shows only</h3>
+            <p>Basic episode tracker. TMDB search, upcoming episodes list, push reminders at air time.</p>
+          </div>
+        </div>
+        <div class="timeline-item">
+          <div class="timeline-dot">2</div>
+          <div class="timeline-body">
+            <h3>+ Movies &amp; Anime</h3>
+            <p>Realized movies and anime have the same core need: release dates, reminders, a library to track progress. Added TMDB movie support and AniList for anime.</p>
+          </div>
+        </div>
+        <div class="timeline-item">
+          <div class="timeline-dot">3</div>
+          <div class="timeline-body">
+            <h3>+ Sports &amp; Calendar-first home</h3>
+            <p>Sports teams added via ESPN + TheSportsDB. Calendar became the home screen — the answer to "what do I need to care about today" on open.</p>
+          </div>
+        </div>
+        <div class="timeline-item">
+          <div class="timeline-dot">4</div>
+          <div class="timeline-body">
+            <h3>+ AI Discovery &amp; Freemium</h3>
+            <p>Claude AI assistant added for scheduling and discovery. RevenueCat paywall gates AI behind Pro. Trakt OAuth integration for watch history sync.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─────────────────────────────────────────────
+       SLIDE 5 — WHAT STREAMCAL BECAME
+  ───────────────────────────────────────────── -->
+  <div class="slide" id="slide-5">
+    <div class="slide-inner">
+      <div class="section-label">Evolution of Project</div>
+      <h2 style="margin-bottom: 8px;">What we shipped</h2>
+      <p style="margin-bottom: 36px; max-width: 640px;">A native iOS app that unifies all your entertainment — and uses AI to help you decide what to watch next.</p>
+      <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px;">
+        <div class="card">
+          <div style="font-size: 28px; margin-bottom: 12px;">📺</div>
+          <h3 style="font-size: 16px; margin-bottom: 6px;">Unified Library</h3>
+          <p style="font-size: 13px;">Shows, movies, anime, and sports teams in one place with streaming service awareness.</p>
+        </div>
+        <div class="card">
+          <div style="font-size: 28px; margin-bottom: 12px;">🗓</div>
+          <h3 style="font-size: 16px; margin-bottom: 6px;">Release Calendar</h3>
+          <p style="font-size: 13px;">Every episode, premiere, and game date on a single calendar. Color-coded by content type.</p>
+        </div>
+        <div class="card">
+          <div style="font-size: 28px; margin-bottom: 12px;">▶️</div>
+          <h3 style="font-size: 16px; margin-bottom: 6px;">Next Up Queue</h3>
+          <p style="font-size: 13px;">Smart watch queue sorted by air date with sections for today, this week, and coming soon.</p>
+        </div>
+        <div class="card">
+          <div style="font-size: 28px; margin-bottom: 12px;">✨</div>
+          <h3 style="font-size: 16px; margin-bottom: 6px;">AI Discovery</h3>
+          <p style="font-size: 13px;">Ask StreamCal anything. It knows your library, your taste, and the entire Claude knowledge base.</p>
+        </div>
+        <div class="card">
+          <div style="font-size: 28px; margin-bottom: 12px;">🏆</div>
+          <h3 style="font-size: 16px; margin-bottom: 6px;">Sports Tracking</h3>
+          <p style="font-size: 13px;">Full schedules for NFL, NBA, MLB, NHL, Premier League, and more with broadcast network per game.</p>
+        </div>
+        <div class="card">
+          <div style="font-size: 28px; margin-bottom: 12px;">🔔</div>
+          <h3 style="font-size: 16px; margin-bottom: 6px;">Smart Notifications</h3>
+          <p style="font-size: 13px;">User-configurable reminders for episodes and games. Per-show mute controls.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─────────────────────────────────────────────
+       SLIDE 6 — TEAM OVERVIEW
+  ───────────────────────────────────────────── -->
+  <div class="slide" id="slide-6">
+    <div class="slide-inner">
+      <div class="section-label">Team Organization</div>
+      <h2 style="margin-bottom: 40px;">A three-person product team</h2>
+      <div class="slide-inner thirds" style="max-width: 100%;">
+        <div class="person-card">
+          <div class="person-avatar">L</div>
+          <div>
+            <div class="person-name">Luke Woods</div>
+            <div class="person-role">Lead iOS Developer</div>
+          </div>
+          <hr>
+          <p style="font-size: 13px; color: var(--text-tertiary);">Responsible for the full iOS app — architecture, all feature development, API integrations, and App Store submission.</p>
+        </div>
+        <div class="person-card">
+          <div class="person-avatar" style="background: linear-gradient(135deg, #FF6B9D, #FF9F45);">M</div>
+          <div>
+            <div class="person-name">Mireya</div>
+            <div class="person-role">UX Research &amp; IA</div>
+          </div>
+          <hr>
+          <p style="font-size: 13px; color: var(--text-tertiary);">Defined the problem space through user research, built the information architecture, and delivered low-fidelity wireframes for all core flows.</p>
+        </div>
+        <div class="person-card">
+          <div class="person-avatar" style="background: linear-gradient(135deg, #34C759, #30D158);">M</div>
+          <div>
+            <div class="person-name">MJ</div>
+            <div class="person-role">Visual Design &amp; Figma</div>
+          </div>
+          <hr>
+          <p style="font-size: 13px; color: var(--text-tertiary);">Built the Figma component system, high-fidelity prototypes, and design language including typography, color, and iconography. Ran design QA against the final build.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─────────────────────────────────────────────
+       SLIDE 7 — KEY CONTRIBUTIONS
+  ───────────────────────────────────────────── -->
+  <div class="slide" id="slide-7">
+    <div class="slide-inner split">
+      <div>
+        <div class="section-label">Team Organization</div>
+        <h2 style="margin-bottom: 28px;">Key contributions</h2>
+        <div style="display: flex; flex-direction: column; gap: 20px;">
+          <div>
+            <div style="font-size: 13px; font-weight: 700; color: var(--accent-light); margin-bottom: 8px;">LUKE — Development</div>
+            <ul class="bullets tight">
+              <li>SwiftUI app architecture with SwiftData and MVVM</li>
+              <li>7 API integrations: TMDB, ESPN, AniList, TheSportsDB, Trakt, Claude, RevenueCat</li>
+              <li>AI assistant with structured JSON rendering and discovery cards</li>
+              <li>Cloudflare Worker for server-side API key security</li>
+              <li>UserNotifications with configurable timing per content type</li>
+            </ul>
+          </div>
+          <div>
+            <div style="font-size: 13px; font-weight: 700; color: #FF9F45; margin-bottom: 8px;">MIREYA — Research &amp; IA</div>
+            <ul class="bullets tight">
+              <li>Identified multi-platform fragmentation as the core problem</li>
+              <li>Defined Library → Calendar → Next Up tab structure</li>
+              <li>Delivered low-fidelity wireframes for add, library, and detail flows</li>
+            </ul>
+          </div>
+          <div>
+            <div style="font-size: 13px; font-weight: 700; color: var(--green); margin-bottom: 8px;">MJ — Design</div>
+            <ul class="bullets tight">
+              <li>Figma component system: cards, badges, typography scale</li>
+              <li>High-fidelity screens for all five app sections</li>
+              <li>Design QA comparing final build against Figma specs</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+      <div>
+        <div style="font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-tertiary); margin-bottom: 16px;">Collaboration Flow</div>
+        <div style="display: flex; flex-direction: column; gap: 12px;">
+          <div class="card-sm" style="display: flex; align-items: center; gap: 12px;">
+            <div style="width: 8px; height: 8px; border-radius: 50%; background: #FF9F45; flex-shrink: 0;"></div>
+            <p style="font-size: 13px;"><strong style="color: var(--text);">Research</strong> — Mireya defines user problems and IA</p>
+          </div>
+          <div style="padding-left: 28px; color: var(--text-tertiary); font-size: 18px;">↓</div>
+          <div class="card-sm" style="display: flex; align-items: center; gap: 12px;">
+            <div style="width: 8px; height: 8px; border-radius: 50%; background: var(--green); flex-shrink: 0;"></div>
+            <p style="font-size: 13px;"><strong style="color: var(--text);">Design</strong> — MJ builds wireframes and Figma system</p>
+          </div>
+          <div style="padding-left: 28px; color: var(--text-tertiary); font-size: 18px;">↓</div>
+          <div class="card-sm" style="display: flex; align-items: center; gap: 12px;">
+            <div style="width: 8px; height: 8px; border-radius: 50%; background: var(--accent-light); flex-shrink: 0;"></div>
+            <p style="font-size: 13px;"><strong style="color: var(--text);">Engineering</strong> — Luke builds to Figma spec in SwiftUI</p>
+          </div>
+          <div style="padding-left: 28px; color: var(--text-tertiary); font-size: 18px;">↓</div>
+          <div class="card-sm" style="display: flex; align-items: center; gap: 12px;">
+            <div style="width: 8px; height: 8px; border-radius: 50%; background: var(--green); flex-shrink: 0;"></div>
+            <p style="font-size: 13px;"><strong style="color: var(--text);">QA</strong> — MJ reviews build against design spec</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─────────────────────────────────────────────
+       SLIDE 8 — SCOPE MAP
+  ───────────────────────────────────────────── -->
+  <div class="slide" id="slide-8">
+    <div class="slide-inner center">
+      <div class="section-label">Scope Definition</div>
+      <h2 style="margin-bottom: 12px;">Five pillars. One app.</h2>
+      <p style="margin-bottom: 48px; max-width: 540px;">Every feature in StreamCal lives inside one of five core areas. Together they answer the question: <em>what should I watch, when is it on, and where can I find it?</em></p>
+      <div style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 16px; width: 100%;">
+        <div class="pillar">
+          <div class="pillar-icon">📚</div>
+          <h3>Library</h3>
+          <p>Your tracked content — shows, movies, anime, sports</p>
+        </div>
+        <div class="pillar">
+          <div class="pillar-icon">🗓</div>
+          <h3>Calendar</h3>
+          <p>Every release date and game on one calendar</p>
+        </div>
+        <div class="pillar">
+          <div class="pillar-icon">▶️</div>
+          <h3>Next Up</h3>
+          <p>Smart queue of what to watch, sorted by air date</p>
+        </div>
+        <div class="pillar">
+          <div class="pillar-icon">✨</div>
+          <h3>Discovery</h3>
+          <p>AI assistant for scheduling and finding new content</p>
+        </div>
+        <div class="pillar">
+          <div class="pillar-icon">⚙️</div>
+          <h3>Settings</h3>
+          <p>Notifications, streaming services, accounts, Pro</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─────────────────────────────────────────────
+       SLIDE 9 — LIBRARY DEEP DIVE
+  ───────────────────────────────────────────── -->
+  <div class="slide" id="slide-9">
+    <div class="slide-inner split">
+      <div>
+        <div class="section-label">Scope Definition — Library</div>
+        <h2 style="margin-bottom: 20px;">Library</h2>
+        <p style="margin-bottom: 24px;">The data layer the rest of the app is built on. Every piece of content you track lives here.</p>
+        <ul class="bullets">
+          <li><strong>Four tabs:</strong> Shows / Movies / Anime / Sports</li>
+          <li><strong>Unified search</strong> across TMDB and ESPN simultaneously</li>
+          <li><strong>Swipe actions:</strong> archive, mark as seen, delete</li>
+          <li><strong>Streaming service badges</strong> powered by TMDB watch providers</li>
+          <li><strong>"Where to Watch"</strong> on every detail page</li>
+          <li><strong>Seen-it tracking</strong> feeds AI context — zero UI noise</li>
+          <li><strong>Trakt sync</strong> imports existing watch history automatically</li>
+        </ul>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 12px;">
+        <div style="font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-tertiary); margin-bottom: 4px;">Library View Mock</div>
+        <div class="phone-mock" style="width: 100%; height: 320px; align-items: stretch; padding: 40px 16px 16px;">
+          <div style="font-size: 12px; font-weight: 700; color: var(--text); margin-bottom: 12px;">Library</div>
+          <div style="display: flex; gap: 8px; margin-bottom: 12px;">
+            <div class="pill pill-accent" style="font-size: 11px;">Shows</div>
+            <div class="pill" style="font-size: 11px; background: var(--surface2); color: var(--text-secondary);">Movies</div>
+            <div class="pill" style="font-size: 11px; background: var(--surface2); color: var(--text-secondary);">Sports</div>
+          </div>
+          <div class="mock-row"><div class="mock-avatar"></div><div style="flex:1;"><div class="mock-bar w80" style="margin-bottom:4px;"></div><div class="mock-bar w40"></div></div><div class="pill pill-accent" style="font-size: 10px; padding: 3px 8px;">Netflix</div></div>
+          <div class="mock-row"><div class="mock-avatar"></div><div style="flex:1;"><div class="mock-bar w60" style="margin-bottom:4px;"></div><div class="mock-bar w40"></div></div><div class="pill" style="font-size: 10px; padding: 3px 8px; background: rgba(0,160,233,0.15); color: #0A84FF;">Max</div></div>
+          <div class="mock-row"><div class="mock-avatar"></div><div style="flex:1;"><div class="mock-bar w80" style="margin-bottom:4px;"></div><div class="mock-bar w40"></div></div><div class="pill" style="font-size: 10px; padding: 3px 8px; background: rgba(255,159,10,0.15); color: #FF9F0A;">Hulu</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─────────────────────────────────────────────
+       SLIDE 10 — CALENDAR + NEXT UP
+  ───────────────────────────────────────────── -->
+  <div class="slide" id="slide-10">
+    <div class="slide-inner split">
+      <div>
+        <div class="section-label">Scope Definition — Calendar &amp; Next Up</div>
+        <h2 style="margin-bottom: 20px;">Calendar &amp; Next Up</h2>
+        <div style="margin-bottom: 20px;">
+          <div class="pill pill-accent" style="margin-bottom: 10px;">Calendar</div>
+          <ul class="bullets tight" style="margin-bottom: 20px;">
+            <li>Monthly calendar with release dots per day</li>
+            <li>Color-coded by content type: shows, movies, sports, anime</li>
+            <li>Tap any date to see exactly what's airing</li>
+            <li>Calendar is the home tab — answers "what today?" on open</li>
+          </ul>
+        </div>
+        <div>
+          <div class="pill" style="margin-bottom: 10px; background: rgba(52,199,89,0.12); color: var(--green);">Next Up</div>
+          <ul class="bullets tight">
+            <li>Smart watch queue sorted by air date</li>
+            <li>Section headers: Airing Today / This Week / Coming Soon / TBA</li>
+            <li>Shows unwatched episodes and upcoming premieres</li>
+            <li>Pull-to-refresh syncs episode data from TMDB</li>
+          </ul>
+        </div>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 16px;">
+        <div class="card" style="padding: 20px;">
+          <div style="font-size: 12px; font-weight: 700; color: var(--text); margin-bottom: 12px;">April 2026</div>
+          <div style="display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; text-align: center;">
+            <div style="font-size: 10px; color: var(--text-tertiary); padding: 4px;">S</div>
+            <div style="font-size: 10px; color: var(--text-tertiary); padding: 4px;">M</div>
+            <div style="font-size: 10px; color: var(--text-tertiary); padding: 4px;">T</div>
+            <div style="font-size: 10px; color: var(--text-tertiary); padding: 4px;">W</div>
+            <div style="font-size: 10px; color: var(--text-tertiary); padding: 4px;">T</div>
+            <div style="font-size: 10px; color: var(--text-tertiary); padding: 4px;">F</div>
+            <div style="font-size: 10px; color: var(--text-tertiary); padding: 4px;">S</div>
+            <div style="font-size: 11px; padding: 6px;">1</div>
+            <div style="font-size: 11px; padding: 6px;">2</div>
+            <div style="font-size: 11px; padding: 6px; background: var(--accent); border-radius: 50%; color: white; font-weight: 700;">3</div>
+            <div style="font-size: 11px; padding: 6px; position: relative;">4<span style="position:absolute; bottom:2px; left:50%; transform:translateX(-50%); width:4px; height:4px; border-radius:50%; background: var(--accent);"></span></div>
+            <div style="font-size: 11px; padding: 6px;">5</div>
+            <div style="font-size: 11px; padding: 6px; position: relative;">6<span style="position:absolute; bottom:2px; left:50%; transform:translateX(-50%); width:4px; height:4px; border-radius:50%; background: var(--green);"></span></div>
+            <div style="font-size: 11px; padding: 6px;">7</div>
+            <div style="font-size: 11px; padding: 6px; position: relative;">8<span style="position:absolute; bottom:2px; left:50%; transform:translateX(-50%); width:4px; height:4px; border-radius:50%; background: var(--orange);"></span></div>
+            <div style="font-size: 11px; padding: 6px;">9</div>
+            <div style="font-size: 11px; padding: 6px;">10</div>
+          </div>
+        </div>
+        <div class="card" style="padding: 16px; display: flex; flex-direction: column; gap: 10px;">
+          <div style="font-size: 11px; font-weight: 700; color: var(--orange); letter-spacing: 0.06em;">AIRING TODAY</div>
+          <div class="mock-row" style="padding: 0;"><div class="mock-avatar"></div><div style="flex:1; margin-left: 8px;"><div class="mock-bar w80" style="margin-bottom:4px;"></div><div class="mock-bar w40"></div></div></div>
+          <div style="font-size: 11px; font-weight: 700; color: var(--accent-light); letter-spacing: 0.06em; margin-top: 6px;">THIS WEEK</div>
+          <div class="mock-row" style="padding: 0;"><div class="mock-avatar"></div><div style="flex:1; margin-left: 8px;"><div class="mock-bar w60" style="margin-bottom:4px;"></div><div class="mock-bar w40"></div></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─────────────────────────────────────────────
+       SLIDE 11 — AI DISCOVERY
+  ───────────────────────────────────────────── -->
+  <div class="slide" id="slide-11">
+    <div class="slide-inner split">
+      <div>
+        <div class="section-label">Scope Definition — AI Discovery</div>
+        <h2 style="margin-bottom: 12px;">AI Discovery</h2>
+        <p style="margin-bottom: 24px;">The feature that separates StreamCal from a simple tracker. It knows your library, your watch history, and what you've already seen — then reasons across all of it.</p>
+        <ul class="bullets">
+          <li><strong>Two modes:</strong> Schedule (library data) vs. Discovery (Claude's full knowledge)</li>
+          <li><strong>Structured responses</strong> rendered as native cards, not chat bubbles</li>
+          <li><strong>Discovery cards:</strong> Claude recommends something new → poster + one-tap add to library</li>
+          <li><strong>Context-aware:</strong> knows what you've watched, what you've seen, what's in your queue</li>
+          <li><strong>Gated to Pro</strong> via RevenueCat entitlement check on the Cloudflare Worker</li>
+        </ul>
+        <div style="margin-top: 20px; display: flex; gap: 8px; flex-wrap: wrap;">
+          <div class="pill pill-accent">✨ Pro Feature</div>
+          <div class="pill pill-blue">Claude claude-sonnet-4-6</div>
+        </div>
+      </div>
+      <div>
+        <div class="card" style="display: flex; flex-direction: column; gap: 12px;">
+          <div style="font-size: 12px; color: var(--text-tertiary); text-align: right;">You</div>
+          <div style="background: var(--accent-dim); border-radius: 12px 12px 4px 12px; padding: 12px 14px; font-size: 13px; color: var(--accent-light); align-self: flex-end;">What should I watch next?</div>
+          <div style="font-size: 12px; color: var(--text-tertiary);">StreamCal</div>
+          <div style="background: var(--surface2); border-radius: 4px 12px 12px 12px; padding: 14px;">
+            <div style="font-size: 12px; font-weight: 700; color: var(--accent-light); margin-bottom: 8px;">RECOMMENDATIONS</div>
+            <div style="display: flex; gap: 10px; margin-bottom: 8px; align-items: center;">
+              <div style="width: 36px; height: 52px; background: var(--border); border-radius: 6px; flex-shrink: 0;"></div>
+              <div><div class="mock-bar w80" style="margin-bottom: 5px; height: 8px;"></div><div class="mock-bar w60" style="height: 6px;"></div></div>
+            </div>
+            <div style="display: flex; gap: 10px; align-items: center;">
+              <div style="width: 36px; height: 52px; background: var(--border); border-radius: 6px; flex-shrink: 0; position: relative;">
+                <div style="position: absolute; top: -6px; right: -6px; width: 16px; height: 16px; background: var(--accent); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700;">+</div>
+              </div>
+              <div><div class="mock-bar w80" style="margin-bottom: 5px; height: 8px;"></div><div class="mock-bar w60" style="height: 6px;"></div></div>
+            </div>
+          </div>
+          <p style="font-size: 11px; color: var(--text-tertiary); text-align: center;">Discovery cards let users add new recommendations directly from the AI response</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─────────────────────────────────────────────
+       SLIDE 12 — SPORTS
+  ───────────────────────────────────────────── -->
+  <div class="slide" id="slide-12">
+    <div class="slide-inner split">
+      <div>
+        <div class="section-label">Scope Definition — Sports</div>
+        <h2 style="margin-bottom: 20px;">Sports Tracking</h2>
+        <p style="margin-bottom: 24px;">Track any professional team alongside your shows and movies — the only entertainment tracker that covers all of it.</p>
+        <ul class="bullets">
+          <li><strong>Leagues:</strong> NFL, NBA, MLB, NHL, MLS, Premier League, La Liga, Champions League, NCAA, F1, NASCAR</li>
+          <li><strong>Dual sources:</strong> ESPN API (North American pro) + TheSportsDB (international)</li>
+          <li><strong>Broadcast network</strong> per game — "ESPN", "TNT", "NBC" as a pill badge</li>
+          <li><strong>Win/Loss/Draw badges</strong> on recent results</li>
+          <li><strong>Push notifications</strong> with configurable lead time before tip-off</li>
+        </ul>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 12px;">
+        <div class="card" style="padding: 20px;">
+          <div style="font-size: 11px; font-weight: 700; letter-spacing: 0.06em; color: var(--text-tertiary); margin-bottom: 14px;">NEXT GAME</div>
+          <div style="font-size: 18px; font-weight: 700; margin-bottom: 6px;">vs Philadelphia 76ers</div>
+          <div style="font-size: 13px; color: var(--text-secondary); margin-bottom: 4px;">Wed, Apr 9 · 8:00 PM</div>
+          <div style="font-size: 12px; color: var(--text-tertiary); margin-bottom: 14px;">TD Garden, Boston</div>
+          <div style="display: flex; gap: 8px;">
+            <div class="pill pill-green">In 1 day</div>
+            <div class="pill" style="background: rgba(255,255,255,0.06); color: var(--text-secondary);">ESPN</div>
+          </div>
+        </div>
+        <div class="card" style="padding: 16px;">
+          <div style="font-size: 11px; font-weight: 700; letter-spacing: 0.06em; color: var(--text-tertiary); margin-bottom: 10px;">RECENT RESULTS</div>
+          <div style="display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--border);">
+            <div><div style="font-size: 13px; font-weight: 500;">vs Miami Heat</div><div style="font-size: 11px; color: var(--text-tertiary);">Apr 5</div></div>
+            <div style="display: flex; gap: 8px; align-items: center;"><span style="font-size: 13px; color: var(--text-secondary);">112–98</span><span class="pill pill-green" style="font-size: 10px; padding: 2px 8px;">W</span></div>
+          </div>
+          <div style="display: flex; justify-content: space-between; align-items: center; padding: 8px 0;">
+            <div><div style="font-size: 13px; font-weight: 500;">at New York Knicks</div><div style="font-size: 11px; color: var(--text-tertiary);">Apr 3</div></div>
+            <div style="display: flex; gap: 8px; align-items: center;"><span style="font-size: 13px; color: var(--text-secondary);">99–107</span><span class="pill pill-red" style="font-size: 10px; padding: 2px 8px;">L</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─────────────────────────────────────────────
+       SLIDE 13 — WIREFRAMES: HAND-DRAWN SKETCHES
+  ───────────────────────────────────────────── -->
+  <div class="slide" id="slide-13">
+    <div class="slide-inner">
+      <div class="section-label">Wireframes — Sketches</div>
+      <h2 style="margin-bottom: 8px;">Starting on paper</h2>
+      <p style="margin-bottom: 6px; max-width: 640px; font-size: 14px;">MJ's hand-drawn sketches defined the two most critical screens before any digital work began — locking in the navigation model and the hierarchy of information on each view.</p>
+      <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 28px;">
+        <div style="width: 6px; height: 6px; border-radius: 50%; background: var(--accent);"></div>
+        <p style="font-size: 12px; color: var(--text-tertiary);">Sketches by <strong style="color: var(--text-secondary);">MJ</strong></p>
+      </div>
+
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 48px; align-items: start; max-width: 820px; margin: 0 auto;">
+        <div style="display: flex; flex-direction: column; gap: 14px;">
+          <div style="font-size: 12px; font-weight: 700; color: var(--orange); letter-spacing: 0.06em;">CALENDAR VIEW</div>
+          <div style="background: #F0F0F0; border-radius: 20px; overflow: hidden; box-shadow: 0 8px 32px rgba(0,0,0,0.45);">
+            <img src="calendarsketch.png" alt="Calendar wireframe sketch by MJ" style="width: 100%; display: block;">
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 6px;">
+            <p style="font-size: 13px; color: var(--text-secondary);">Monthly grid with day-level release entries. Settings gear and favorites star in the top bar. Established the calendar-first navigation before any screen was coded.</p>
+            <div style="display: flex; gap: 6px; flex-wrap: wrap; margin-top: 4px;">
+              <span class="pill pill-orange" style="font-size: 11px;">Monthly grid</span>
+              <span class="pill pill-accent" style="font-size: 11px;">Release entries per day</span>
+              <span class="pill" style="font-size: 11px; background: var(--surface2); color: var(--text-secondary);">Tab bar nav</span>
+            </div>
+          </div>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 14px;">
+          <div style="font-size: 12px; font-weight: 700; color: var(--accent-light); letter-spacing: 0.06em;">HOME / TODAY VIEW</div>
+          <div style="background: #F0F0F0; border-radius: 20px; overflow: hidden; box-shadow: 0 8px 32px rgba(0,0,0,0.45);">
+            <img src="homesketch.png" alt="Home screen wireframe sketch by MJ" style="width: 100%; display: block;">
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 6px;">
+            <p style="font-size: 13px; color: var(--text-secondary);">Today's date + what's on at the top. Then "Upcoming This Week" poster grid, "Trending This Week," and "Coming Today" below — a prioritized feed that answers <em>what's happening now</em> immediately.</p>
+            <div style="display: flex; gap: 6px; flex-wrap: wrap; margin-top: 4px;">
+              <span class="pill pill-accent" style="font-size: 11px;">Today section</span>
+              <span class="pill pill-green" style="font-size: 11px;">Poster grid</span>
+              <span class="pill" style="font-size: 11px; background: var(--surface2); color: var(--text-secondary);">Trending row</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─────────────────────────────────────────────
+       SLIDE 14 — WIREFRAMES: DIGITAL SCREENS
+  ───────────────────────────────────────────── -->
+  <div class="slide" id="slide-14">
+    <div class="slide-inner">
+      <div class="section-label">Wireframes — Digital Screens</div>
+      <h2 style="margin-bottom: 8px;">Translating sketches into digital wireframes</h2>
+      <p style="margin-bottom: 6px; max-width: 640px; font-size: 14px;">MJ brought the paper sketches into digital wireframes — establishing interaction patterns, content hierarchy, and the platform badge system before moving into high-fidelity Figma.</p>
+      <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 28px;">
+        <div style="width: 6px; height: 6px; border-radius: 50%; background: var(--accent);"></div>
+        <p style="font-size: 12px; color: var(--text-tertiary);">Digital wireframes by <strong style="color: var(--text-secondary);">MJ</strong></p>
+      </div>
+
+      <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 28px; align-items: start;">
+
+        <div style="display: flex; flex-direction: column; gap: 14px;">
+          <div style="font-size: 12px; font-weight: 700; color: var(--orange); letter-spacing: 0.06em;">HOME SCREEN</div>
+          <div style="border-radius: 20px; overflow: hidden; box-shadow: 0 8px 32px rgba(0,0,0,0.5); border: 1px solid var(--border);">
+            <img src="Home.png" alt="Home screen digital wireframe by MJ" style="width: 100%; display: block;">
+          </div>
+          <p style="font-size: 13px; color: var(--text-secondary);">"Don't Miss Today's Programs" — today's schedule at top, followed by Trending This Week poster grid and Upcoming This Week. Priority: surface what's happening <em>now.</em></p>
+          <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+            <span class="pill pill-orange" style="font-size: 11px;">Today section</span>
+            <span class="pill pill-accent" style="font-size: 11px;">Trending grid</span>
+          </div>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 14px;">
+          <div style="font-size: 12px; font-weight: 700; color: var(--accent-light); letter-spacing: 0.06em;">SEARCH &amp; DISCOVERY</div>
+          <div style="border-radius: 20px; overflow: hidden; box-shadow: 0 8px 32px rgba(0,0,0,0.5); border: 1px solid var(--border);">
+            <img src="Search Result.png" alt="Search results digital wireframe by MJ" style="width: 100%; display: block;">
+          </div>
+          <p style="font-size: 13px; color: var(--text-secondary);">Search returns the matched show with release date, genre, and streaming platform badges. "Looking for similar series?" surfaces discovery below the result. Add (+) and favorite (☆) on every row.</p>
+          <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+            <span class="pill pill-accent" style="font-size: 11px;">Platform badges</span>
+            <span class="pill pill-green" style="font-size: 11px;">Similar shows</span>
+          </div>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 14px;">
+          <div style="font-size: 12px; font-weight: 700; color: var(--green); letter-spacing: 0.06em;">SETTINGS &amp; PROFILE</div>
+          <div style="border-radius: 20px; overflow: hidden; box-shadow: 0 8px 32px rgba(0,0,0,0.5); border: 1px solid var(--border);">
+            <img src="Settings.png" alt="Settings digital wireframe by MJ" style="width: 100%; display: block;">
+          </div>
+          <p style="font-size: 13px; color: var(--text-secondary);">Settings kept intentionally minimal: Edit Platforms and Notification Setting. MJ's wireframe established early that this should be a short scannable list — not a nested menu.</p>
+          <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+            <span class="pill pill-green" style="font-size: 11px;">Edit platforms</span>
+            <span class="pill" style="font-size: 11px; background: var(--surface2); color: var(--text-secondary);">Notifications</span>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- ─────────────────────────────────────────────
+       SLIDE 16 — TECH STACK OVERVIEW
+  ───────────────────────────────────────────── -->
+  <div class="slide" id="slide-16">
+    <div class="slide-inner">
+      <div class="section-label">Technology Decisions</div>
+      <h2 style="margin-bottom: 8px;">No third-party UI frameworks. All native.</h2>
+      <p style="margin-bottom: 32px; max-width: 580px; font-size: 14px;">Every technology decision was made to maximize iOS quality and minimize maintenance overhead. If Apple provides it, we used it.</p>
+      <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px;">
+        <div class="tech-card">
+          <div style="font-size: 24px;">📱</div>
+          <div class="tech-name">SwiftUI</div>
+          <div class="tech-desc">Declarative native UI. Animation, layout, state — all first-party.</div>
+          <div class="sat-bar"><div class="sat-fill" style="width: 92%;"></div></div>
+          <div class="sat-label">9/10 satisfaction</div>
+        </div>
+        <div class="tech-card">
+          <div style="font-size: 24px;">💾</div>
+          <div class="tech-name">SwiftData</div>
+          <div class="tech-desc">First-party persistence. @Query binds data to UI automatically.</div>
+          <div class="sat-bar"><div class="sat-fill" style="width: 85%;"></div></div>
+          <div class="sat-label">8.5/10 satisfaction</div>
+        </div>
+        <div class="tech-card">
+          <div style="font-size: 24px;">🎬</div>
+          <div class="tech-name">TMDB API</div>
+          <div class="tech-desc">Industry-standard movie/TV database. Episodes, posters, watch providers.</div>
+          <div class="sat-bar"><div class="sat-fill" style="width: 90%;"></div></div>
+          <div class="sat-label">9/10 satisfaction</div>
+        </div>
+        <div class="tech-card">
+          <div style="font-size: 24px;">🏈</div>
+          <div class="tech-name">ESPN API</div>
+          <div class="tech-desc">Schedules, scores, broadcast networks for North American pro sports.</div>
+          <div class="sat-bar"><div class="sat-fill" style="width: 70%;"></div></div>
+          <div class="sat-label">7/10 satisfaction</div>
+        </div>
+        <div class="tech-card">
+          <div style="font-size: 24px;">🎌</div>
+          <div class="tech-name">AniList GraphQL</div>
+          <div class="tech-desc">Comprehensive anime database with air dates. No API key required.</div>
+          <div class="sat-bar"><div class="sat-fill" style="width: 80%;"></div></div>
+          <div class="sat-label">8/10 satisfaction</div>
+        </div>
+        <div class="tech-card">
+          <div style="font-size: 24px;">✨</div>
+          <div class="tech-name">Claude AI</div>
+          <div class="tech-desc">Structured JSON responses via Cloudflare Worker. Server-side API key security.</div>
+          <div class="sat-bar"><div class="sat-fill" style="width: 92%;"></div></div>
+          <div class="sat-label">9/10 satisfaction</div>
+        </div>
+        <div class="tech-card">
+          <div style="font-size: 24px;">💳</div>
+          <div class="tech-name">RevenueCat</div>
+          <div class="tech-desc">App Store subscriptions, entitlement checks, customer portal.</div>
+          <div class="sat-bar"><div class="sat-fill" style="width: 100%;"></div></div>
+          <div class="sat-label">10/10 satisfaction</div>
+        </div>
+        <div class="tech-card">
+          <div style="font-size: 24px;">🔄</div>
+          <div class="tech-name">Trakt OAuth</div>
+          <div class="tech-desc">In-app OAuth via ASWebAuthenticationSession. Watch history sync.</div>
+          <div class="sat-bar"><div class="sat-fill" style="width: 80%;"></div></div>
+          <div class="sat-label">8/10 satisfaction</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─────────────────────────────────────────────
+       SLIDE 17 — SWIFTUI + SWIFTDATA
+  ───────────────────────────────────────────── -->
+  <div class="slide" id="slide-17">
+    <div class="slide-inner split">
+      <div>
+        <div class="section-label">Technology Decisions</div>
+        <h2 style="margin-bottom: 20px;">SwiftUI + SwiftData</h2>
+        <p style="margin-bottom: 24px;">Choosing native frameworks wasn't the default — it was a philosophy. No third-party UI library means the app looks and feels like iOS, not like a cross-platform wrapper.</p>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 24px;">
+          <div>
+            <div style="font-size: 12px; font-weight: 700; color: var(--green); margin-bottom: 10px; letter-spacing: 0.05em;">WHY IT WORKED</div>
+            <ul class="bullets tight">
+              <li>Declarative UI = rapid iteration</li>
+              <li><code style="font-size: 12px; color: var(--accent-light);">@Query</code> auto-updates UI when data changes</li>
+              <li>Zero ORM setup — models are just annotated classes</li>
+              <li>SwiftUI animations are first-class</li>
+              <li>No compatibility shims for Apple APIs</li>
+            </ul>
+          </div>
+          <div>
+            <div style="font-size: 12px; font-weight: 700; color: var(--orange); margin-bottom: 10px; letter-spacing: 0.05em;">CHALLENGES</div>
+            <ul class="bullets tight">
+              <li>SwiftData complex query limitations</li>
+              <li>Migration edge cases required careful defaults</li>
+              <li>Some SwiftUI layout bugs needed workarounds</li>
+            </ul>
+          </div>
+        </div>
+        <div style="display: flex; gap: 12px;">
+          <div class="card-sm" style="flex: 1; text-align: center;">
+            <div style="font-size: 28px; font-weight: 700; color: var(--green);">9/10</div>
+            <div style="font-size: 12px; color: var(--text-tertiary);">SwiftUI satisfaction</div>
+          </div>
+          <div class="card-sm" style="flex: 1; text-align: center;">
+            <div style="font-size: 28px; font-weight: 700; color: var(--green);">8.5/10</div>
+            <div style="font-size: 12px; color: var(--text-tertiary);">SwiftData satisfaction</div>
+          </div>
+        </div>
+      </div>
+      <div>
+        <div style="font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-tertiary); margin-bottom: 16px;">Data Architecture</div>
+        <div style="display: flex; flex-direction: column; gap: 12px;">
+          <div class="card-sm" style="border-left: 3px solid var(--accent);">
+            <div style="font-size: 13px; font-weight: 700; margin-bottom: 4px;">SwiftData Models</div>
+            <p style="font-size: 12px;">Show, Episode, Movie, AnimeShow, AnimeEpisode, SportTeam, SportGame — cascade-delete relationships</p>
+          </div>
+          <div class="card-sm" style="border-left: 3px solid var(--accent-light);">
+            <div style="font-size: 13px; font-weight: 700; margin-bottom: 4px;">@Query + @Environment</div>
+            <p style="font-size: 12px;">Views subscribe to live data — no manual refresh calls, no view models managing state by hand</p>
+          </div>
+          <div class="card-sm" style="border-left: 3px solid #9B6BF2;">
+            <div style="font-size: 13px; font-weight: 700; margin-bottom: 4px;">Services</div>
+            <p style="font-size: 12px;">RefreshService, NotificationService, ClaudeService — stateless or actors, no UI coupling</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─────────────────────────────────────────────
+       SLIDE 18 — APIS
+  ───────────────────────────────────────────── -->
+  <div class="slide" id="slide-18">
+    <div class="slide-inner">
+      <div class="section-label">Technology Decisions</div>
+      <h2 style="margin-bottom: 28px;">API decisions</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>API</th>
+            <th>Purpose</th>
+            <th>Why Selected</th>
+            <th>Challenges</th>
+            <th style="text-align: center;">Score</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>TMDB</td>
+            <td>Shows, movies, episodes, watch providers, posters</td>
+            <td>Industry standard, free tier generous, excellent watch-provider endpoint</td>
+            <td>None significant</td>
+            <td style="text-align: center;"><span class="score score-high">9</span></td>
+          </tr>
+          <tr>
+            <td>ESPN API</td>
+            <td>North American pro sports schedules, scores, broadcast networks</td>
+            <td>Only free source for NFL/NBA/MLB/NHL with broadcast data</td>
+            <td>Undocumented — response shapes vary by endpoint, required defensive decoding</td>
+            <td style="text-align: center;"><span class="score score-mid">7</span></td>
+          </tr>
+          <tr>
+            <td>AniList GraphQL</td>
+            <td>Anime metadata, episode air dates, next airing</td>
+            <td>Clean schema, comprehensive, no API key required</td>
+            <td>GraphQL pagination edge cases with large catalogs</td>
+            <td style="text-align: center;"><span class="score score-high">8</span></td>
+          </tr>
+          <tr>
+            <td>TheSportsDB</td>
+            <td>International soccer + fallback sports data</td>
+            <td>Best coverage for Premier League, La Liga, Champions League</td>
+            <td>Free tier rate-limited to ~1 req/350ms — required careful throttling</td>
+            <td style="text-align: center;"><span class="score score-mid">6</span></td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="card-sm" style="margin-top: 24px; background: rgba(255,159,10,0.06); border-color: rgba(255,159,10,0.2);">
+        <p style="font-size: 13px;"><strong style="color: var(--orange);">Key lesson:</strong> ESPN's undocumented API required building a defensive JSON decoder that handles inconsistent response shapes across endpoints — a real-world engineering skill that wouldn't come from a documented API.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─────────────────────────────────────────────
+       SLIDE 19 — AI + REVENUECAT
+  ───────────────────────────────────────────── -->
+  <div class="slide" id="slide-19">
+    <div class="slide-inner split">
+      <div>
+        <div class="section-label">Technology Decisions</div>
+        <h2 style="margin-bottom: 20px;">AI + Monetization</h2>
+        <div style="margin-bottom: 24px;">
+          <div style="font-size: 13px; font-weight: 700; color: var(--accent-light); margin-bottom: 10px;">CLAUDE AI — 9/10</div>
+          <p style="font-size: 14px; margin-bottom: 12px;">Returns structured JSON, not prose. The app renders native cards — not a chat window — for a significantly better user experience.</p>
+          <ul class="bullets tight">
+            <li>API key held server-side in Cloudflare Worker — never touches the client</li>
+            <li>Worker validates RevenueCat Pro entitlement before forwarding request</li>
+            <li>Two modes: library-aware scheduling vs. open-ended discovery</li>
+            <li>Structured JSON schema enforced in system prompt</li>
+          </ul>
+        </div>
+        <hr>
+        <div style="margin-top: 20px;">
+          <div style="font-size: 13px; font-weight: 700; color: var(--green); margin-bottom: 10px;">REVENUECAT — 10/10</div>
+          <p style="font-size: 14px; margin-bottom: 12px;">Eliminated the hardest part of App Store monetization — receipt validation, entitlement management, and the customer subscription portal.</p>
+          <ul class="bullets tight">
+            <li>Single SDK call to check <code style="font-size: 12px; color: var(--accent-light);">isPro</code> entitlement anywhere in the app</li>
+            <li>Built-in customer center for managing / canceling subscriptions</li>
+            <li>Would use again on every paid iOS app</li>
+          </ul>
+        </div>
+      </div>
+      <div>
+        <div style="font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-tertiary); margin-bottom: 16px;">AI Request Architecture</div>
+        <div style="display: flex; flex-direction: column; gap: 8px;">
+          <div class="arch-box highlight" style="text-align: center;">📱 iOS App</div>
+          <div style="text-align: center; color: var(--text-tertiary); font-size: 13px;">POST /ai · customerID</div>
+          <div style="text-align: center; color: var(--text-tertiary);">↓</div>
+          <div class="arch-box" style="text-align: center; background: rgba(255,159,10,0.08); border-color: rgba(255,159,10,0.2);">☁️ Cloudflare Worker</div>
+          <div style="display: flex; gap: 8px; align-items: center; justify-content: center;">
+            <div style="font-size: 12px; color: var(--text-tertiary);">validates Pro with</div>
+          </div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+            <div class="arch-box" style="text-align: center; font-size: 12px;">💳 RevenueCat API</div>
+            <div class="arch-box" style="text-align: center; font-size: 12px;">✨ Claude API</div>
+          </div>
+          <div style="text-align: center; color: var(--text-tertiary);">↓</div>
+          <div class="arch-box highlight" style="text-align: center; font-size: 13px;">Structured JSON response</div>
+          <div style="text-align: center; color: var(--text-tertiary);">↓</div>
+          <div class="arch-box" style="text-align: center; font-size: 12px;">Native card rendering in SwiftUI</div>
+        </div>
+        <div class="card-sm" style="margin-top: 16px; font-size: 12px;">
+          <strong style="color: var(--text);">Why the Worker pattern?</strong><br>
+          <span style="color: var(--text-tertiary);">API key never shipped in the app binary. Zero cost to rotate it. Pro check runs server-side — can't be bypassed by the client.</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─────────────────────────────────────────────
+       SLIDE 20 — FINAL DESIGN: LIBRARY + SEARCH
+  ───────────────────────────────────────────── -->
+  <div class="slide" id="slide-20">
+    <div class="slide-inner">
+      <div class="section-label">Final Design — Library &amp; Search</div>
+      <h2 style="margin-bottom: 8px;">The library, shipped</h2>
+      <p style="margin-bottom: 28px; font-size: 14px; max-width: 680px;">Streaming platform badges, swipe actions, and "Where to Watch" — all four content types in one unified library. Search runs across TMDB and ESPN simultaneously.</p>
+      <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 28px; align-items: start;">
+        <div style="display: flex; flex-direction: column; gap: 12px;">
+          <div style="font-size: 12px; font-weight: 700; color: var(--accent-light); letter-spacing: 0.06em;">SHOWS LIBRARY</div>
+          <div style="border-radius: 24px; overflow: hidden; box-shadow: 0 12px 40px rgba(0,0,0,0.6); border: 1px solid var(--border); background: var(--surface2); aspect-ratio: 9/19.5; display: flex; align-items: center; justify-content: center;">
+            <img src="ss-library.png" alt="Library screenshot" style="width:100%; height:100%; object-fit:cover; display:block;">
+          </div>
+          <ul class="bullets tight">
+            <li>Shows, Movies, Sports tabs</li>
+            <li>Streaming platform badges on each row</li>
+            <li>Next episode date per show</li>
+          </ul>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 12px;">
+          <div style="font-size: 12px; font-weight: 700; color: var(--orange); letter-spacing: 0.06em;">SEARCH &amp; ADD</div>
+          <div style="border-radius: 24px; overflow: hidden; box-shadow: 0 12px 40px rgba(0,0,0,0.6); border: 1px solid var(--border); background: var(--surface2); aspect-ratio: 9/19.5; display: flex; align-items: center; justify-content: center;">
+            <img src="screenshot-search.png" alt="Search screenshot" style="width:100%; height:100%; object-fit:cover; display:block;">
+          </div>
+          <ul class="bullets tight">
+            <li>Live TMDB + ESPN search</li>
+            <li>Poster, genre, release date on each result</li>
+            <li>One tap to add to library</li>
+          </ul>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 12px;">
+          <div style="font-size: 12px; font-weight: 700; color: var(--green); letter-spacing: 0.06em;">SPORTS LIBRARY</div>
+          <div style="border-radius: 24px; overflow: hidden; box-shadow: 0 12px 40px rgba(0,0,0,0.6); border: 1px solid var(--border); background: var(--surface2); aspect-ratio: 9/19.5; display: flex; align-items: center; justify-content: center;">
+            <img src="ss-sports.png" alt="Sports library screenshot" style="width:100%; height:100%; object-fit:cover; display:block;">
+          </div>
+          <ul class="bullets tight">
+            <li>NFL, NBA, MLB, NHL, NCAA, and more</li>
+            <li>Grouped by sport with team logos</li>
+            <li>Next game date per team</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─────────────────────────────────────────────
+       SLIDE 21 — FINAL DESIGN: CALENDAR + NEXT UP
+  ───────────────────────────────────────────── -->
+  <div class="slide" id="slide-21">
+    <div class="slide-inner">
+      <div class="section-label">Final Design — Calendar, Next Up &amp; Settings</div>
+      <h2 style="margin-bottom: 8px;">Your schedule, at a glance</h2>
+      <p style="margin-bottom: 28px; font-size: 14px; max-width: 680px;">The calendar is the home tab — every episode premiere, movie release, and game date in one view. Next Up surfaces what to watch in prioritized sections.</p>
+      <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 28px; align-items: start;">
+        <div style="display: flex; flex-direction: column; gap: 12px;">
+          <div style="font-size: 12px; font-weight: 700; color: var(--orange); letter-spacing: 0.06em;">CALENDAR</div>
+          <div style="border-radius: 24px; overflow: hidden; box-shadow: 0 12px 40px rgba(0,0,0,0.6); border: 1px solid var(--border); background: var(--surface2); aspect-ratio: 9/19.5; display: flex; align-items: center; justify-content: center;">
+            <img src="screenshot-calendar.png" alt="Calendar screenshot" style="width:100%; height:100%; object-fit:cover; display:block;">
+          </div>
+          <ul class="bullets tight">
+            <li>Monthly grid with color-coded dots</li>
+            <li>Tap any date to see what's airing</li>
+            <li>Shows, movies, sports, anime all in one</li>
+          </ul>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 12px;">
+          <div style="font-size: 12px; font-weight: 700; color: var(--accent-light); letter-spacing: 0.06em;">NEXT UP</div>
+          <div style="border-radius: 24px; overflow: hidden; box-shadow: 0 12px 40px rgba(0,0,0,0.6); border: 1px solid var(--border); background: var(--surface2); aspect-ratio: 9/19.5; display: flex; align-items: center; justify-content: center;">
+            <img src="ss-nextup.png" alt="Next Up screenshot" style="width:100%; height:100%; object-fit:cover; display:block;">
+          </div>
+          <ul class="bullets tight">
+            <li>Airing Today / This Week / Coming Soon / TBA</li>
+            <li>Episode cards with countdown labels</li>
+            <li>AI suggestion button at top</li>
+          </ul>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 12px;">
+          <div style="font-size: 12px; font-weight: 700; color: var(--green); letter-spacing: 0.06em;">SETTINGS &amp; PRO</div>
+          <div style="border-radius: 24px; overflow: hidden; box-shadow: 0 12px 40px rgba(0,0,0,0.6); border: 1px solid var(--border); background: var(--surface2); aspect-ratio: 9/19.5; display: flex; align-items: center; justify-content: center;">
+            <img src="ss-settings.png" alt="Settings screenshot" style="width:100%; height:100%; object-fit:cover; display:block;">
+          </div>
+          <ul class="bullets tight">
+            <li>Library stats: 5 shows, 3 movies, 6 teams, 1,320 episodes</li>
+            <li>StreamCal Pro via RevenueCat</li>
+            <li>Trakt OAuth + notification controls</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─────────────────────────────────────────────
+       SLIDE 21b — FINAL DESIGN: AI FEATURES
+  ───────────────────────────────────────────── -->
+  <div class="slide" id="slide-21b">
+    <div class="slide-inner split">
+      <div>
+        <div class="section-label">Final Design — AI Features</div>
+        <h2 style="margin-bottom: 16px;">The AI that knows your library</h2>
+        <p style="margin-bottom: 24px; font-size: 14px;">Ask StreamCal anything — it has full context of your watched shows, upcoming queue, seen movies, and sports teams, plus Claude's complete knowledge base for discovery.</p>
+        <div style="display: flex; flex-direction: column; gap: 16px;">
+          <div class="card-sm" style="border-left: 3px solid var(--accent);">
+            <div style="font-size: 13px; font-weight: 700; margin-bottom: 4px;">Schedule mode</div>
+            <p style="font-size: 13px;">"What's on tonight?" → pulls from your real library data. Exact air dates, episode numbers, no hallucinations.</p>
+          </div>
+          <div class="card-sm" style="border-left: 3px solid #9B6BF2;">
+            <div style="font-size: 13px; font-weight: 700; margin-bottom: 4px;">Discovery mode</div>
+            <p style="font-size: 13px;">"Recommend something like Severance" → Claude's full knowledge. Returns real shows, streaming platforms, why you'd like them.</p>
+          </div>
+          <div class="card-sm" style="border-left: 3px solid var(--green);">
+            <div style="font-size: 13px; font-weight: 700; margin-bottom: 4px;">Discovery cards</div>
+            <p style="font-size: 13px;">When Claude recommends something not in your library, a poster card appears with a + button. One tap adds it directly — search never required.</p>
+          </div>
+          <div class="card-sm" style="border-left: 3px solid var(--orange);">
+            <div style="font-size: 13px; font-weight: 700; margin-bottom: 4px;">Structured responses</div>
+            <p style="font-size: 13px;">Responses render as native iOS cards — not a chat bubble. Section headers, item rows, badges, and live indicators built from JSON.</p>
+          </div>
+        </div>
+        <div style="margin-top: 20px; display: flex; gap: 8px; flex-wrap: wrap;">
+          <span class="pill pill-accent">✨ Pro feature</span>
+          <span class="pill pill-blue">Claude claude-sonnet-4-6</span>
+          <span class="pill" style="background: rgba(255,255,255,0.06); color: var(--text-secondary);">Cloudflare Worker</span>
+        </div>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 16px;">
+        <div style="font-size: 12px; font-weight: 700; color: var(--accent-light); letter-spacing: 0.06em;">AI CHAT — LIVE APP</div>
+        <div style="border-radius: 24px; overflow: hidden; box-shadow: 0 12px 40px rgba(107,95,237,0.3); border: 1px solid rgba(107,95,237,0.2); background: var(--surface2); aspect-ratio: 9/19.5; max-width: 280px; margin: 0 auto; display: flex; align-items: center; justify-content: center;">
+          <img src="ss-ai.png" alt="AI chat screenshot" style="width:100%; height:100%; object-fit:cover; display:block;">
+        </div>
+        <p style="font-size: 12px; color: var(--text-tertiary); text-align: center; max-width: 280px; margin: 0 auto;">Structured response cards with discovery posters and one-tap add</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─────────────────────────────────────────────
+       SLIDE 22 — REFLECTIONS + NEXT
+  ───────────────────────────────────────────── -->
+  <div class="slide" id="slide-22">
+    <div class="slide-inner split">
+      <div>
+        <div class="section-label">Reflections</div>
+        <h2 style="margin-bottom: 24px;">What we learned.<br>What's next.</h2>
+        <div style="margin-bottom: 20px;">
+          <div style="font-size: 12px; font-weight: 700; color: var(--green); margin-bottom: 10px; letter-spacing: 0.05em;">WHAT WENT WELL</div>
+          <ul class="bullets tight">
+            <li>Native-first approach delivered a genuinely polished, iOS-quality feel</li>
+            <li>Structured AI responses were the right call — cards beat chat bubbles every time</li>
+            <li>RevenueCat removed months of subscription management complexity</li>
+            <li>Cloudflare Worker pattern kept API keys off the client cleanly</li>
+            <li>Calendar-as-home answered the core question immediately on open</li>
+          </ul>
+        </div>
+        <div style="margin-bottom: 20px;">
+          <div style="font-size: 12px; font-weight: 700; color: var(--orange); margin-bottom: 10px; letter-spacing: 0.05em;">WHAT WE'D DO DIFFERENTLY</div>
+          <ul class="bullets tight">
+            <li>Start with a design token system earlier — retrofitting consistency took effort</li>
+            <li>Evaluate ESPN alternatives sooner — undocumented APIs slow iteration</li>
+            <li>Scope AI features first, not last — they shaped the product more than expected</li>
+          </ul>
+        </div>
+        <div>
+          <div style="font-size: 12px; font-weight: 700; color: var(--accent-light); margin-bottom: 10px; letter-spacing: 0.05em;">WHAT'S NEXT</div>
+          <ul class="bullets tight">
+            <li>Home screen widget — today's schedule at a glance</li>
+            <li>AI-generated weekly push notification recap</li>
+            <li>App Store submission</li>
+          </ul>
+        </div>
+      </div>
+      <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 24px;">
+        <div class="app-icon" style="width: 120px; height: 120px; border-radius: 28px; font-size: 60px;">📅</div>
+        <div style="text-align: center;">
+          <h2 style="font-size: 32px; margin-bottom: 8px;">StreamCal</h2>
+          <p style="font-size: 16px;">Your entertainment, in one place.</p>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 8px; width: 100%; max-width: 280px;">
+          <div class="pill pill-accent" style="justify-content: center; padding: 10px 20px; font-size: 13px;">iOS — Native SwiftUI</div>
+          <div class="pill" style="justify-content: center; padding: 10px 20px; font-size: 13px; background: var(--surface); color: var(--text-secondary);">Built Spring 2026</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- end .deck -->
+
+<!-- NAV -->
+<div class="nav">
+  <button id="prevBtn" onclick="navigate(-1)" disabled>←</button>
+  <div class="slide-counter" id="counter">1 / 22</div>
+  <button id="nextBtn" onclick="navigate(1)">→</button>
+</div>
+
+<script>
+  const slides = document.querySelectorAll('.slide');
+  const total = slides.length;
+  let current = 0;
+
+  function navigate(dir) {
+    const next = current + dir;
+    if (next < 0 || next >= total) return;
+
+    slides[current].classList.remove('active');
+    slides[current].classList.add('exit');
+    setTimeout(() => slides[current].classList.remove('exit'), 400);
+
+    current = next;
+    slides[current].classList.add('active');
+
+    document.getElementById('counter').textContent = `${current + 1} / ${total}`;
+    document.getElementById('prevBtn').disabled = current === 0;
+    document.getElementById('nextBtn').disabled = current === total - 1;
+    document.getElementById('progress').style.width = `${((current + 1) / total) * 100}%`;
+  }
+
+  document.addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight' || e.key === 'ArrowDown') navigate(1);
+    if (e.key === 'ArrowLeft'  || e.key === 'ArrowUp')   navigate(-1);
+  });
+
+  // Touch swipe support
+  let touchStartX = 0;
+  document.addEventListener('touchstart', e => { touchStartX = e.touches[0].clientX; });
+  document.addEventListener('touchend', e => {
+    const dx = e.changedTouches[0].clientX - touchStartX;
+    if (Math.abs(dx) > 50) navigate(dx < 0 ? 1 : -1);
+  });
+
+  // Init progress bar
+  document.getElementById('progress').style.width = `${(1 / total) * 100}%`;
+</script>
+</body>
+</html>

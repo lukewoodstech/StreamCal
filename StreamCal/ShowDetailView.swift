@@ -16,7 +16,7 @@ struct ShowDetailView: View {
     private var nextUp: Episode? {
         let today = Calendar.current.startOfDay(for: .now)
         return show.episodes
-            .filter { !$0.isWatched && ($0.airDate >= today || $0.airDate == .distantFuture) }
+            .filter { $0.airDate >= today || $0.airDate == .distantFuture }
             .sorted {
                 if $0.airDate == .distantFuture && $1.airDate == .distantFuture {
                     if $0.seasonNumber != $1.seasonNumber { return $0.seasonNumber < $1.seasonNumber }
@@ -32,7 +32,7 @@ struct ShowDetailView: View {
     private var upcomingEpisodes: [Episode] {
         let today = Calendar.current.startOfDay(for: .now)
         return show.episodes
-            .filter { !$0.isWatched && ($0.airDate > today || $0.airDate == .distantFuture) }
+            .filter { $0.airDate > today || $0.airDate == .distantFuture }
             .sorted {
                 if $0.airDate == .distantFuture && $1.airDate == .distantFuture {
                     if $0.seasonNumber != $1.seasonNumber { return $0.seasonNumber < $1.seasonNumber }
@@ -66,6 +66,8 @@ struct ShowDetailView: View {
                         .padding(.horizontal, DS.Spacing.lg)
                         .padding(.bottom, DS.Spacing.lg)
                 }
+
+                whereToWatchSection
 
                 if let overview = show.overview, !overview.isEmpty {
                     aboutSection(overview)
@@ -110,6 +112,9 @@ struct ShowDetailView: View {
                         )
                     }
                     Divider()
+                    Button(show.isSeen ? "Mark as Not Seen" : "Mark as Seen") {
+                        show.isSeen.toggle()
+                    }
                     Button(show.isArchived ? "Unarchive" : "Archive") {
                         show.isArchived.toggle()
                         show.updatedAt = .now
@@ -311,6 +316,27 @@ struct ShowDetailView: View {
         .clipShape(RoundedRectangle(cornerRadius: DS.Radius.lg))
     }
 
+    // MARK: - Where to Watch
+
+    @ViewBuilder
+    private var whereToWatchSection: some View {
+        let providers = show.matchedStreamingPlatforms
+        if !providers.isEmpty {
+            VStack(alignment: .leading, spacing: DS.Spacing.sm) {
+                Text("Where to Watch")
+                    .font(.headline)
+                HStack(spacing: 6) {
+                    ForEach(providers) { platform in
+                        Text(platform.rawValue)
+                            .statusBadge(color: platform.badgeColor)
+                    }
+                }
+            }
+            .padding(.horizontal, DS.Spacing.lg)
+            .padding(.bottom, DS.Spacing.lg)
+        }
+    }
+
     // MARK: - About
 
     private func aboutSection(_ overview: String) -> some View {
@@ -356,16 +382,11 @@ struct EpisodeRowView: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(episode.displayTitle)
                     .font(.subheadline)
-                    .foregroundStyle(episode.isWatched ? .secondary : .primary)
                 Text(episode.airDate == .distantFuture ? "TBA" : episode.airDate.formatted(date: .abbreviated, time: .omitted))
                     .font(.caption)
                     .foregroundStyle(.tertiary)
             }
             Spacer()
-            if episode.isWatched {
-                Image(systemName: "checkmark.circle.fill")
-                    .foregroundStyle(.green)
-            }
         }
     }
 }

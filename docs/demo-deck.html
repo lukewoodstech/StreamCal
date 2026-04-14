@@ -1,0 +1,539 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>StreamCal — Demo Deck</title>
+<style>
+  :root {
+    --ai:      #5856d6;
+    --shows:   #a78bfa;
+    --movies:  #f87171;
+    --sports:  #34d399;
+    --bg:      #0a0a0f;
+    --surface: #13131a;
+    --card:    #1c1c26;
+    --border:  rgba(255,255,255,0.07);
+    --text:    #f0f0f5;
+    --muted:   rgba(240,240,245,0.45);
+    --radius:  16px;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    width: 100%; height: 100%;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', sans-serif;
+    overflow: hidden;
+    user-select: none;
+  }
+
+  /* ── Deck shell ── */
+  #deck {
+    width: 100vw; height: 100vh;
+    display: flex; align-items: center; justify-content: center;
+  }
+
+  .slide {
+    display: none;
+    width: 100%; height: 100%;
+    padding: 60px 80px;
+    flex-direction: column;
+    justify-content: center;
+    position: relative;
+    overflow: hidden;
+  }
+  .slide.active { display: flex; }
+
+  /* ── Background glow orbs ── */
+  .orb {
+    position: absolute;
+    border-radius: 50%;
+    filter: blur(120px);
+    opacity: 0.18;
+    pointer-events: none;
+  }
+
+  /* ── Nav ── */
+  #nav {
+    position: fixed; bottom: 28px; right: 36px;
+    display: flex; align-items: center; gap: 12px;
+    z-index: 100;
+  }
+  .nav-btn {
+    width: 40px; height: 40px;
+    border-radius: 50%;
+    border: 1px solid var(--border);
+    background: rgba(255,255,255,0.06);
+    color: var(--text);
+    font-size: 18px;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    backdrop-filter: blur(12px);
+    transition: background 0.2s, border-color 0.2s;
+  }
+  .nav-btn:hover { background: rgba(255,255,255,0.12); border-color: var(--ai); }
+
+  #slide-counter {
+    font-size: 13px; color: var(--muted); font-weight: 500;
+    min-width: 48px; text-align: center;
+  }
+
+  /* ── Slide number badge ── */
+  .slide-label {
+    position: absolute; top: 32px; left: 80px;
+    font-size: 11px; font-weight: 700; letter-spacing: 2px;
+    text-transform: uppercase; color: var(--muted);
+  }
+
+  /* ── Logo mark ── */
+  .logo-mark {
+    position: absolute; top: 24px; right: 80px;
+    font-size: 14px; font-weight: 700;
+    background: linear-gradient(135deg, var(--shows), var(--ai));
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    letter-spacing: -0.3px;
+  }
+
+  /* ── Typography ── */
+  .eyebrow {
+    font-size: 12px; font-weight: 700; letter-spacing: 2.5px;
+    text-transform: uppercase;
+    margin-bottom: 14px;
+  }
+  .eyebrow.ai    { color: var(--ai); }
+  .eyebrow.shows { color: var(--shows); }
+  .eyebrow.stack { color: var(--sports); }
+
+  h1 {
+    font-size: clamp(38px, 5vw, 62px);
+    font-weight: 800;
+    line-height: 1.05;
+    letter-spacing: -1.5px;
+  }
+  h2 {
+    font-size: clamp(28px, 3.5vw, 44px);
+    font-weight: 800;
+    letter-spacing: -1px;
+    line-height: 1.1;
+  }
+  h3 {
+    font-size: 18px; font-weight: 700;
+    margin-bottom: 6px;
+  }
+  p, li {
+    font-size: clamp(15px, 1.6vw, 18px);
+    line-height: 1.65;
+    color: rgba(240,240,245,0.8);
+  }
+  .tagline {
+    font-size: clamp(20px, 2.4vw, 30px);
+    font-weight: 500;
+    letter-spacing: -0.5px;
+    color: rgba(240,240,245,0.55);
+    margin-top: 12px;
+    font-style: italic;
+  }
+
+  /* ── Gradient text ── */
+  .grad {
+    background: linear-gradient(135deg, #a78bfa 0%, #818cf8 50%, #5856d6 100%);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  }
+  .grad-warm {
+    background: linear-gradient(135deg, #f472b6 0%, #fb923c 100%);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  }
+
+  /* ── Cards ── */
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 22px 24px;
+  }
+  .card-grid {
+    display: grid;
+    gap: 14px;
+  }
+  .card-grid-2 { grid-template-columns: 1fr 1fr; }
+  .card-grid-3 { grid-template-columns: 1fr 1fr 1fr; }
+
+  /* ── Pill badge ── */
+  .pill {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 5px 12px;
+    border-radius: 999px;
+    font-size: 12px; font-weight: 700; letter-spacing: 0.3px;
+    border: 1px solid;
+  }
+  .pill.ai     { background: rgba(88,86,214,0.15); border-color: rgba(88,86,214,0.4); color: var(--shows); }
+  .pill.shows  { background: rgba(167,139,250,0.12); border-color: rgba(167,139,250,0.35); color: var(--shows); }
+  .pill.movies { background: rgba(248,113,113,0.12); border-color: rgba(248,113,113,0.35); color: var(--movies); }
+  .pill.sports { background: rgba(52,211,153,0.12); border-color: rgba(52,211,153,0.35); color: var(--sports); }
+
+  /* ── Divider ── */
+  hr { border: none; border-top: 1px solid var(--border); margin: 20px 0; }
+
+  /* ── Table ── */
+  table {
+    width: 100%; border-collapse: collapse;
+    font-size: clamp(13px, 1.4vw, 15px);
+  }
+  thead tr { border-bottom: 1px solid var(--border); }
+  thead th {
+    text-align: left; padding: 10px 14px;
+    font-size: 11px; font-weight: 700; letter-spacing: 1.5px;
+    text-transform: uppercase; color: var(--muted);
+  }
+  tbody tr { border-bottom: 1px solid rgba(255,255,255,0.04); }
+  tbody tr:last-child { border-bottom: none; }
+  tbody td { padding: 12px 14px; vertical-align: top; }
+  .td-layer { font-weight: 700; color: var(--text); }
+  .td-tech  { color: var(--shows); font-weight: 600; }
+  .td-why   { color: rgba(240,240,245,0.65); }
+
+  /* ── Icon dot ── */
+  .dot {
+    width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0;
+    margin-top: 7px;
+  }
+  .dot.ai     { background: var(--ai); }
+  .dot.shows  { background: var(--shows); }
+  .dot.movies { background: var(--movies); }
+  .dot.sports { background: var(--sports); }
+
+  /* ── Bullet rows ── */
+  .bullet-row { display: flex; gap: 12px; align-items: flex-start; }
+  ul.clean { list-style: none; display: flex; flex-direction: column; gap: 10px; }
+
+  /* ── Problem / solution split ── */
+  .split { display: grid; grid-template-columns: 1fr 1fr; gap: 32px; align-items: start; }
+
+  /* ── UX decision cards ── */
+  .decision-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .decision-card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; }
+  .decision-num { font-size: 11px; font-weight: 800; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; }
+  .decision-title { font-size: 16px; font-weight: 800; margin-bottom: 8px; letter-spacing: -0.3px; }
+  .decision-body { font-size: 14px; line-height: 1.6; color: rgba(240,240,245,0.65); }
+
+  /* ── Animations ── */
+  .slide.active { animation: fadeUp 0.35s ease both; }
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(18px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  /* ── Cover slide specific ── */
+  #slide-0 { justify-content: center; }
+  .hero-kicker { display: flex; align-items: center; gap: 10px; margin-bottom: 20px; }
+  .hero-icon {
+    width: 52px; height: 52px; border-radius: 14px;
+    background: linear-gradient(135deg, #a78bfa, #5856d6);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 24px;
+    box-shadow: 0 8px 32px rgba(88,86,214,0.45);
+  }
+  .problem-row { display: flex; gap: 10px; align-items: flex-start; margin-bottom: 12px; }
+  .problem-x { color: var(--movies); font-weight: 800; font-size: 18px; line-height: 1.4; }
+
+  /* ── Demo flow slide ── */
+  .demo-steps { display: flex; flex-direction: column; gap: 12px; }
+  .demo-step { display: flex; align-items: center; gap: 16px; }
+  .step-num {
+    width: 32px; height: 32px; border-radius: 50%; flex-shrink: 0;
+    background: linear-gradient(135deg, var(--shows), var(--ai));
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px; font-weight: 800;
+  }
+  .step-text { font-size: clamp(14px, 1.5vw, 17px); color: rgba(240,240,245,0.82); line-height: 1.4; }
+  .step-text strong { color: var(--text); }
+</style>
+</head>
+<body>
+
+<div id="deck">
+
+  <!-- ═══════════════════════════════════════════════════
+       SLIDE 0 — Cover
+  ══════════════════════════════════════════════════════ -->
+  <div class="slide active" id="slide-0">
+    <div class="orb" style="width:600px;height:600px;background:var(--ai);top:-200px;left:-100px;"></div>
+    <div class="orb" style="width:400px;height:400px;background:var(--shows);bottom:-150px;right:-80px;"></div>
+
+    <div class="logo-mark">StreamCal</div>
+
+    <div class="hero-kicker">
+      <div class="hero-icon">📅</div>
+    </div>
+
+    <h1><span class="grad">StreamCal</span></h1>
+    <p class="tagline">Your entire entertainment life — one calendar.</p>
+
+    <div style="margin-top:48px; display:flex; gap:10px; flex-wrap:wrap;">
+      <span class="pill shows">📺 TV Shows</span>
+      <span class="pill movies">🎬 Movies</span>
+      <span class="pill sports">🏆 Sports</span>
+      <span class="pill ai">✦ Claude AI</span>
+    </div>
+
+    <div style="margin-top:56px;">
+      <p style="font-size:13px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;font-weight:600;">Functional Prototype Demo #6</p>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════
+       SLIDE 1 — Product Vision
+  ══════════════════════════════════════════════════════ -->
+  <div class="slide" id="slide-1">
+    <div class="orb" style="width:500px;height:500px;background:var(--shows);top:-180px;right:-80px;"></div>
+
+    <div class="slide-label">01 — Product Vision</div>
+    <div class="logo-mark">StreamCal</div>
+
+    <div class="eyebrow shows">The Problem</div>
+    <h2 style="margin-bottom:28px;">Streaming is <span class="grad-warm">fragmented.</span><br>Your schedule isn't.</h2>
+
+    <div class="split">
+      <div>
+        <div class="problem-row">
+          <span class="problem-x">✕</span>
+          <p>Content scattered across 6+ streaming apps with no unified view</p>
+        </div>
+        <div class="problem-row">
+          <span class="problem-x">✕</span>
+          <p>You find out your show aired three days ago — again</p>
+        </div>
+        <div class="problem-row">
+          <span class="problem-x">✕</span>
+          <p>No single place for TV, movies, <em>and</em> sports schedules together</p>
+        </div>
+        <div class="problem-row" style="margin-top:4px;">
+          <span class="problem-x">✕</span>
+          <p>Generic AI assistants don't know what <em>you</em> actually watch</p>
+        </div>
+      </div>
+
+      <div>
+        <div class="card" style="border-color:rgba(167,139,250,0.2);">
+          <div class="eyebrow shows" style="margin-bottom:12px;">The Vision</div>
+          <p style="font-size:clamp(15px,1.6vw,18px); line-height:1.7; color:rgba(240,240,245,0.85);">
+            StreamCal is a <strong style="color:var(--text)">personal entertainment OS</strong> — add any show, movie, or sports team and get a live calendar of everything coming up, powered by real data and an AI that actually knows your taste.
+          </p>
+          <hr>
+          <div style="display:flex; gap:16px; flex-wrap:wrap;">
+            <div>
+              <p style="font-size:22px; font-weight:800; color:var(--shows);">4</p>
+              <p style="font-size:12px; color:var(--muted);">Content types</p>
+            </div>
+            <div>
+              <p style="font-size:22px; font-weight:800; color:var(--movies);">3</p>
+              <p style="font-size:12px; color:var(--muted);">Live data sources</p>
+            </div>
+            <div>
+              <p style="font-size:22px; font-weight:800; color:var(--ai);">1</p>
+              <p style="font-size:12px; color:var(--muted);">Unified calendar</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════
+       SLIDE 2 — UX Decisions
+  ══════════════════════════════════════════════════════ -->
+  <div class="slide" id="slide-2">
+    <div class="orb" style="width:450px;height:450px;background:var(--ai);bottom:-150px;left:-100px;"></div>
+
+    <div class="slide-label">02 — UX Decisions</div>
+    <div class="logo-mark">StreamCal</div>
+
+    <div class="eyebrow ai">Design Philosophy</div>
+    <h2 style="margin-bottom:24px;">Every decision reduces <span class="grad">cognitive load.</span></h2>
+
+    <div class="decision-grid">
+      <div class="decision-card">
+        <div class="decision-num">Decision 01</div>
+        <div class="decision-title">📅 Calendar as Home</div>
+        <div class="decision-body">A temporal map instead of a list. You see what's happening <em>today, this week, coming soon</em> — no mental math required. Answers the user's real question: "what do I watch tonight?"</div>
+      </div>
+
+      <div class="decision-card">
+        <div class="decision-num">Decision 02</div>
+        <div class="decision-title">➡️ Forward-Looking Only</div>
+        <div class="decision-body">We removed "mark as watched." StreamCal isn't a logging app — it's an anticipation engine. Simpler data model, cleaner screens, and it keeps users focused on what's next.</div>
+      </div>
+
+      <div class="decision-card">
+        <div class="decision-num">Decision 03</div>
+        <div class="decision-title">✦ AI With Real Context</div>
+        <div class="decision-body">Ask StreamCal sends your actual library as context to Claude. It can say "Severance S3E5 airs Thursday" — not generic recs. It also recommends beyond your library, informed by your taste.</div>
+      </div>
+
+      <div class="decision-card">
+        <div class="decision-num">Decision 04</div>
+        <div class="decision-title">🎨 Semantic Design System</div>
+        <div class="decision-body">Shows = purple, Movies = red, Sports = green, AI = indigo — consistently across every screen. One <code style="font-size:12px;color:var(--shows);">DS</code> enum controls all spacing, radii, and color. Zero magic numbers.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════
+       SLIDE 3 — Technical Stack
+  ══════════════════════════════════════════════════════ -->
+  <div class="slide" id="slide-3">
+    <div class="orb" style="width:400px;height:400px;background:var(--sports);top:-120px;right:-80px;"></div>
+
+    <div class="slide-label">03 — Technical Stack</div>
+    <div class="logo-mark">StreamCal</div>
+
+    <div class="eyebrow stack">Architecture</div>
+    <h2 style="margin-bottom:20px;">Native. <span style="color:var(--sports)">No dependencies.</span><br>AI-first from day one.</h2>
+
+    <div style="display:grid; grid-template-columns:1.4fr 1fr; gap:24px; align-items:start;">
+      <div class="card" style="padding:0; overflow:hidden;">
+        <table>
+          <thead>
+            <tr>
+              <th>Layer</th>
+              <th>Technology</th>
+              <th>Why It Matters</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="td-layer">UI + Data</td>
+              <td class="td-tech">SwiftUI + SwiftData</td>
+              <td class="td-why">Declarative, no ORM boilerplate, cascade deletes built-in</td>
+            </tr>
+            <tr>
+              <td class="td-layer">TV + Movies</td>
+              <td class="td-tech">TMDB API</td>
+              <td class="td-why">1M+ titles, real air dates, streaming providers, poster art</td>
+            </tr>
+            <tr>
+              <td class="td-layer">Anime</td>
+              <td class="td-tech">AniList GraphQL</td>
+              <td class="td-why">Purpose-built anime DB with per-episode schedules</td>
+            </tr>
+            <tr>
+              <td class="td-layer">Sports</td>
+              <td class="td-tech">ESPN + TheSportsDB</td>
+              <td class="td-why">Live game schedules across every major league</td>
+            </tr>
+            <tr>
+              <td class="td-layer">AI</td>
+              <td class="td-tech">Claude Haiku via Cloudflare</td>
+              <td class="td-why">API key never in binary; Pro entitlement verified server-side</td>
+            </tr>
+            <tr>
+              <td class="td-layer">Monetization</td>
+              <td class="td-tech">RevenueCat</td>
+              <td class="td-why">Cross-platform subscription + receipt validation</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div style="display:flex; flex-direction:column; gap:12px;">
+        <div class="card" style="border-color:rgba(88,86,214,0.25);">
+          <h3 style="font-size:14px; color:var(--ai); margin-bottom:8px;">🔐 Security First</h3>
+          <p style="font-size:13px; color:rgba(240,240,245,0.65); line-height:1.6;">Claude API key lives in Cloudflare Workers — never ships in the app binary. Worker validates RevenueCat Pro entitlement before forwarding any request.</p>
+        </div>
+        <div class="card" style="border-color:rgba(52,211,153,0.2);">
+          <h3 style="font-size:14px; color:var(--sports); margin-bottom:8px;">⚡ Zero Third-Party UI Deps</h3>
+          <p style="font-size:13px; color:rgba(240,240,245,0.65); line-height:1.6;">Custom <code style="color:var(--shows); font-size:12px;">CachedAsyncImage</code> with NSCache, custom <code style="color:var(--shows); font-size:12px;">FlowLayout</code>, custom design system. No SPM bloat.</p>
+        </div>
+        <div class="card" style="border-color:rgba(167,139,250,0.2);">
+          <h3 style="font-size:14px; color:var(--shows); margin-bottom:8px;">🔄 Stateless Refresh</h3>
+          <p style="font-size:13px; color:rgba(240,240,245,0.65); line-height:1.6;">RefreshService re-fetches all APIs on launch and reschedules notifications atomically. No stale cache, no manual sync button.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════
+       SLIDE 4 — Demo Flow
+  ══════════════════════════════════════════════════════ -->
+  <div class="slide" id="slide-4">
+    <div class="orb" style="width:500px;height:500px;background:var(--ai);bottom:-200px;right:-100px;"></div>
+    <div class="orb" style="width:300px;height:300px;background:var(--shows);top:-100px;left:-50px;"></div>
+
+    <div class="slide-label">04 — Demo</div>
+    <div class="logo-mark">StreamCal</div>
+
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:48px; align-items:center;">
+      <div>
+        <div class="eyebrow ai">Live Demo</div>
+        <h2 style="margin-bottom:8px;">Show the app,<br><span class="grad">not the idea.</span></h2>
+        <p style="color:var(--muted); font-size:15px; margin-top:10px;">Target: 6–8 minutes</p>
+      </div>
+
+      <div class="demo-steps">
+        <div class="demo-step">
+          <div class="step-num">1</div>
+          <p class="step-text"><strong>Calendar tab</strong> — show today's content with live TMDB + ESPN data</p>
+        </div>
+        <div class="demo-step">
+          <div class="step-num">2</div>
+          <p class="step-text"><strong>Add a show</strong> — TMDB search → real episodes populate instantly</p>
+        </div>
+        <div class="demo-step">
+          <div class="step-num">3</div>
+          <p class="step-text"><strong>Next Up tab</strong> — show all three content types: shows, movies, sports</p>
+        </div>
+        <div class="demo-step">
+          <div class="step-num">4</div>
+          <p class="step-text" style="color:var(--shows);"><strong>✦ Ask StreamCal</strong> — type "what action movie should I watch tonight?" — poster cards load, AI recommends from taste + world knowledge</p>
+        </div>
+        <div class="demo-step">
+          <div class="step-num">5</div>
+          <p class="step-text"><strong>Settings</strong> — preferred platforms, notifications</p>
+        </div>
+      </div>
+    </div>
+
+    <div style="margin-top:32px; padding:16px 20px; background:rgba(88,86,214,0.1); border:1px solid rgba(88,86,214,0.25); border-radius:12px;">
+      <p style="font-size:14px; color:rgba(240,240,245,0.7); line-height:1.6;">
+        <strong style="color:var(--ai);">Lead with the calendar, end with the AI.</strong> The Ask StreamCal moment — where it names your actual shows and pulls their poster art — is the most impressive 30 seconds. Save it for last.
+      </p>
+    </div>
+  </div>
+
+</div>
+
+<!-- Navigation -->
+<div id="nav">
+  <button class="nav-btn" id="prev" onclick="navigate(-1)">←</button>
+  <span id="slide-counter">1 / 5</span>
+  <button class="nav-btn" id="next" onclick="navigate(1)">→</button>
+</div>
+
+<script>
+  const slides = document.querySelectorAll('.slide');
+  let current = 0;
+
+  function show(n) {
+    slides[current].classList.remove('active');
+    current = (n + slides.length) % slides.length;
+    slides[current].classList.add('active');
+    document.getElementById('slide-counter').textContent = `${current + 1} / ${slides.length}`;
+  }
+
+  function navigate(dir) { show(current + dir); }
+
+  document.addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight' || e.key === 'ArrowDown' || e.key === ' ') { e.preventDefault(); navigate(1); }
+    if (e.key === 'ArrowLeft'  || e.key === 'ArrowUp')                    { e.preventDefault(); navigate(-1); }
+  });
+
+  // Click anywhere on slide (not nav) to advance
+  document.getElementById('deck').addEventListener('click', e => {
+    if (!e.target.closest('#nav')) navigate(1);
+  });
+</script>
+</body>
+</html>

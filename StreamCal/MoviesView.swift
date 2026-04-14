@@ -41,11 +41,6 @@ struct MoviesView: View {
               .sorted { ($0.streamingReleaseDate ?? .distantFuture) > ($1.streamingReleaseDate ?? .distantFuture) }
     }
 
-    private var watched: [Movie] {
-        movies.filter { $0.isWatched && !$0.isArchived }
-              .sorted { ($0.watchedAt ?? .distantPast) > ($1.watchedAt ?? .distantPast) }
-    }
-
     var body: some View {
         Group {
             if isSearching {
@@ -76,7 +71,6 @@ struct MoviesView: View {
                     movieSection("Coming Soon", movies: comingSoon)
                     movieSection("Streaming Now", movies: streaming)
                     movieSection("Announced", movies: announced)
-                    movieSection("Watched", movies: watched)
                 }
                 .listStyle(.insetGrouped)
                 .refreshable {
@@ -105,30 +99,12 @@ struct MoviesView: View {
                         }
                     }
                     .swipeActions(edge: .leading) {
-                        if !movie.isWatched {
-                            Button {
-                                movie.isWatched = true
-                                movie.watchedAt = .now
-                                movie.updatedAt = .now
-                                if let tmdbID = movie.tmdbID {
-                                    NotificationService.shared.cancelMovieNotification(tmdbID: tmdbID)
-                                }
-                                toast = .watched(movie.title)
-                            } label: {
-                                Label("Watched", systemImage: "checkmark.circle")
-                            }
-                            .tint(.green)
-                        } else {
-                            Button {
-                                movie.isWatched = false
-                                movie.watchedAt = nil
-                                movie.updatedAt = .now
-                                toast = .unwatched(movie.title)
-                            } label: {
-                                Label("Unwatch", systemImage: "arrow.uturn.backward")
-                            }
-                            .tint(.orange)
+                        Button {
+                            movie.isSeen.toggle()
+                        } label: {
+                            Label(movie.isSeen ? "Not Seen" : "Seen It", systemImage: movie.isSeen ? "eye.slash" : "eye")
                         }
+                        .tint(.teal)
                     }
                 }
             }
@@ -207,9 +183,7 @@ struct MovieRowView: View {
     @ViewBuilder
     private var releaseChip: some View {
         switch movie.releaseStatus {
-        case .watched:
-            Text("Watched").statusBadge(color: .green)
-        case .streaming:
+        case .watched, .streaming:
             Text("Streaming").statusBadge(color: .blue)
         case .released:
             Text("In Theaters").statusBadge(color: DS.Color.movieTheaterRed)

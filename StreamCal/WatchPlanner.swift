@@ -94,7 +94,7 @@ final class WatchPlanner {
             .filter { !$0.isArchived }
             .compactMap { show -> (Show, Episode)? in
                 let ep = show.episodes
-                    .filter { !$0.isWatched && Calendar.current.isDateInToday($0.airDate) }
+                    .filter { Calendar.current.isDateInToday($0.airDate) }
                     .sorted {
                         if $0.seasonNumber != $1.seasonNumber { return $0.seasonNumber < $1.seasonNumber }
                         return $0.episodeNumber < $1.episodeNumber
@@ -118,7 +118,6 @@ final class WatchPlanner {
             .flatMap { show in
                 show.episodes
                     .filter {
-                        !$0.isWatched &&
                         $0.airDate != .distantFuture &&
                         $0.airDate >= tomorrow &&
                         $0.airDate < endOfWeek
@@ -142,7 +141,6 @@ final class WatchPlanner {
             .flatMap { show in
                 show.episodes
                     .filter {
-                        !$0.isWatched &&
                         $0.airDate != .distantFuture &&
                         $0.airDate >= beyond
                     }
@@ -160,7 +158,7 @@ final class WatchPlanner {
             .filter { !$0.isArchived }
             .flatMap { show in
                 show.episodes
-                    .filter { !$0.isWatched && $0.airDate == .distantFuture }
+                    .filter { $0.airDate == .distantFuture }
                     .map { (show: show, episode: $0) }
             }
             .sorted { lhs, rhs in
@@ -198,7 +196,7 @@ final class WatchPlanner {
         // Episodes
         let windowed = episodes.filter {
             guard $0.show?.isArchived != true else { return false }
-            return !$0.isWatched && $0.airDate != .distantFuture && $0.airDate >= today
+            return $0.airDate != .distantFuture && $0.airDate >= today
         }
         var episodeDict: [Date: [Episode]] = [:]
         for ep in windowed {
@@ -208,7 +206,7 @@ final class WatchPlanner {
 
         // Movies
         let windowedMovies = movies.filter {
-            guard !$0.isArchived && !$0.isWatched else { return false }
+            guard !$0.isArchived else { return false }
             let date = $0.primaryCalendarDate
             return date != .distantFuture && date >= today
         }
@@ -231,7 +229,7 @@ final class WatchPlanner {
         // Anime episodes
         let windowedAnime = anime.filter {
             guard $0.show?.isArchived != true else { return false }
-            return !$0.isWatched && $0.airDate != .distantFuture && $0.airDate >= today
+            return $0.airDate != .distantFuture && $0.airDate >= today
         }
         var animeDict: [Date: [AnimeEpisode]] = [:]
         for ep in windowedAnime {

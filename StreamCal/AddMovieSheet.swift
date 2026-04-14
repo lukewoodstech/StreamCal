@@ -64,20 +64,13 @@ struct AddMovieSheet: View {
                         }
                     }
                 } else {
-                    ForEach(results) { movie in
-                        let alreadyAdded = libraryTMDBIDs.contains(movie.id)
-                        if alreadyAdded, let existing = libraryMoviesByTMDBID[movie.id] {
-                            NavigationLink(destination: MovieDetailView(movie: existing)) {
-                                MovieSearchResultRow(movie: movie, alreadyAdded: true)
-                            }
-                        } else {
-                            Button {
-                                Task { await importMovie(movie) }
-                            } label: {
-                                MovieSearchResultRow(movie: movie, alreadyAdded: false)
-                            }
-                            .buttonStyle(.plain)
+                    ForEach(results.filter { !libraryTMDBIDs.contains($0.id) }) { movie in
+                        Button {
+                            Task { await importMovie(movie) }
+                        } label: {
+                            MovieSearchResultRow(movie: movie, alreadyAdded: false)
                         }
+                        .buttonStyle(.plain)
                     }
                 }
             }
