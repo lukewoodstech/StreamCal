@@ -5,19 +5,19 @@ import SwiftUI
 final class ImageCache {
     static let shared = ImageCache()
 
-    private let cache: NSCache<NSString, UIImage> = {
-        let c = NSCache<NSString, UIImage>()
+    private let cache: NSCache<NSURL, UIImage> = {
+        let c = NSCache<NSURL, UIImage>()
         c.countLimit = 200
         c.totalCostLimit = 50 * 1024 * 1024 // 50 MB
         return c
     }()
 
     func image(for url: URL) -> UIImage? {
-        cache.object(forKey: url.absoluteString as NSString)
+        cache.object(forKey: url as NSURL)
     }
 
     func store(_ image: UIImage, for url: URL) {
-        cache.setObject(image, forKey: url.absoluteString as NSString)
+        cache.setObject(image, forKey: url as NSURL)
     }
 }
 
@@ -57,4 +57,25 @@ struct CachedAsyncImage<Content: View>: View {
             phase = .failure(error)
         }
     }
+}
+
+// MARK: - Preview
+
+#Preview {
+    VStack(spacing: 16) {
+        CachedAsyncImage(url: URL(string: "https://image.tmdb.org/t/p/w92/invalid.jpg")) { phase in
+            switch phase {
+            case .success(let image):
+                image.resizable().aspectRatio(contentMode: .fill)
+            case .failure, .empty:
+                RoundedRectangle(cornerRadius: 6)
+                    .fill(Color(.systemGray5))
+            @unknown default:
+                RoundedRectangle(cornerRadius: 6).fill(Color(.systemGray5))
+            }
+        }
+        .frame(width: 44, height: 66)
+        .clipShape(RoundedRectangle(cornerRadius: 6))
+    }
+    .padding()
 }
