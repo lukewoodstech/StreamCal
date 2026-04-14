@@ -30,8 +30,7 @@ struct StreamCalApp: App {
         .modelContainer(for: [Show.self, Episode.self, Movie.self, SportTeam.self, SportGame.self, AnimeShow.self, AnimeEpisode.self]) { result in
             guard let container = try? result.get() else { return }
             Task { @MainActor in
-                await RefreshService.shared.refreshAllShows(modelContext: container.mainContext)
-                await RefreshService.shared.refreshAllAnime(modelContext: container.mainContext)
+                await RefreshService.shared.refreshAll(modelContext: container.mainContext)
                 await TraktService.shared.syncHistory(modelContext: container.mainContext)
             }
         }

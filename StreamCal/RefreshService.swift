@@ -212,6 +212,17 @@ final class RefreshService {
         try? modelContext.save()
     }
 
+    // MARK: - Combined
+
+    func refreshAll(modelContext: ModelContext) async {
+        await withTaskGroup(of: Void.self) { group in
+            group.addTask { await RefreshService.shared.refreshAllShows(modelContext: modelContext) }
+            group.addTask { await RefreshService.shared.refreshAllMovies(modelContext: modelContext) }
+            group.addTask { await RefreshService.shared.refreshAllTeams(modelContext: modelContext) }
+            group.addTask { await RefreshService.shared.refreshAllAnime(modelContext: modelContext) }
+        }
+    }
+
     // MARK: - Private
 
     /// Core upsert logic — fetches fresh data from TMDB and syncs into SwiftData.
