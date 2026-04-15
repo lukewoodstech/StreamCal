@@ -19,7 +19,7 @@ struct SettingsView: View {
     @State private var showingNotifications = false
     @State private var showingPlatforms = false
     @State private var showingPaywall = false
-    @State private var showingCustomerCenter = false
+    @State private var showingProManagement = false
 
     private var appVersion: String {
         Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "—"
@@ -109,27 +109,23 @@ struct SettingsView: View {
 
                     Section("Smart Features") {
                         if purchaseService.isPro {
-                            HStack {
-                                Label("StreamCal Pro", systemImage: "sparkles")
-                                    .foregroundStyle(DS.Color.ai)
-                                Spacer()
-                                Text("Active")
-                                    .font(.subheadline)
-                                    .foregroundStyle(.secondary)
-                            }
                             Button {
-                                showingCustomerCenter = true
+                                showingProManagement = true
                             } label: {
                                 HStack {
-                                    Text("Manage Subscription")
-                                        .foregroundStyle(.primary)
+                                    Label("StreamCal Pro", systemImage: "sparkles")
+                                        .foregroundStyle(DS.Color.ai)
                                     Spacer()
+                                    Text("Active")
+                                        .font(.subheadline)
+                                        .foregroundStyle(.secondary)
                                     Image(systemName: "chevron.right")
                                         .imageScale(.small)
                                         .fontWeight(.semibold)
                                         .foregroundStyle(.tertiary)
                                 }
                             }
+                            .foregroundStyle(.primary)
                         } else {
                             Button {
                                 showingPaywall = true
@@ -205,8 +201,8 @@ struct SettingsView: View {
             .sheet(isPresented: $showingPaywall) {
                 AppPaywallView().environmentObject(purchaseService)
             }
-            .sheet(isPresented: $showingCustomerCenter) {
-                AppCustomerCenterView()
+            .sheet(isPresented: $showingProManagement) {
+                ProManagementSheet().environmentObject(purchaseService)
             }
             .overlay(alignment: .top) {
                 if showingDeletedBanner {
