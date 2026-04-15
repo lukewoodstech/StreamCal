@@ -218,7 +218,6 @@ final class TMDBService: Sendable {
 
     static let shared = TMDBService()
 
-    private let token = "eyJhbGciOiJIUzI1NiJ9.eyJhdWQiOiJlMWQ4OTNiZTA5M2ZiNzk5ODRkZTdhMWViZTkwYjU4ZSIsIm5iZiI6MTc3Mjc1NDMxNS4yMDcsInN1YiI6IjY5YWExNThiZjhiY2NiZDM1NTU0YjI1NiIsInNjb3BlcyI6WyJhcGlfcmVhZCJdLCJ2ZXJzaW9uIjoxfQ.YkPtG1wD5CYcoPSiUywkYKdsGmeeyPiSydodB0xDim0"
     private let baseURL = "https://api.themoviedb.org/3"
     private let session = URLSession.shared
 
@@ -233,7 +232,7 @@ final class TMDBService: Sendable {
             throw URLError(.badURL)
         }
         var req = URLRequest(url: url)
-        req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        req.setValue("Bearer \(APIKeys.tmdbBearerToken)", forHTTPHeaderField: "Authorization")
         req.setValue("application/json", forHTTPHeaderField: "accept")
         return req
     }

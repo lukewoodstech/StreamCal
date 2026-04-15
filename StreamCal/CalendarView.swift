@@ -282,12 +282,7 @@ struct CalendarView: View {
     }
 
     private func refreshAll() async {
-        await withTaskGroup(of: Void.self) { group in
-            group.addTask { await RefreshService.shared.refreshAllShows(modelContext: modelContext) }
-            group.addTask { await RefreshService.shared.refreshAllMovies(modelContext: modelContext) }
-            group.addTask { await RefreshService.shared.refreshAllTeams(modelContext: modelContext) }
-            group.addTask { await RefreshService.shared.refreshAllAnime(modelContext: modelContext) }
-        }
+        await RefreshService.shared.refreshAll(modelContext: modelContext)
     }
 
     private var dayPaneHeader: some View {
